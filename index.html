@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>KIT — Web Engineering &amp; Analysis Platform</title>
+  <title>KIT — Power Engineering Platform</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
@@ -20,7 +20,7 @@
       <div class="galaxy-overlay">
         <div class="brand-tagline">
           <h1 class="brand-name">KIT</h1>
-          <p class="brand-sub">Web Engineering &amp; Analysis Platform</p>
+          <p class="brand-sub">Power Engineering Platform</p>
         </div>
       </div>
     </div>
@@ -32,7 +32,7 @@
           <div class="logo-mark"></div>
         </div>
         <h2 class="login-title">Welcome to KIT</h2>
-        <p class="login-desc">Sign in to access your engineering toolbox</p>
+        <p class="login-desc">Sign in to access the power engineering platform</p>
 
         <div class="divider">
           <span>Continue with</span>
@@ -82,7 +82,7 @@
         <span>KIT</span>
       </div>
       <div class="nav-center">
-        <span class="nav-title">Engineering &amp; Analysis Platform</span>
+        <span class="nav-title">Power Engineering Platform</span>
       </div>
       <div class="nav-user">
         <img id="user-avatar" src="" alt="User" class="avatar" />
@@ -94,101 +94,301 @@
     <!-- Dashboard Content -->
     <main class="dashboard">
       <div class="dashboard-header">
-        <h2>Choose Your Tool</h2>
-        <p>Select a module to get started. More tools coming soon.</p>
+        <h2>Power System Simulator</h2>
+        <p>Steady-state analysis platform — SLD, Power Flow, Short Circuit, Voltage Drop &amp; Protection</p>
       </div>
 
-      <div class="tools-grid">
+      <div class="tools-grid single-tool">
 
-        <!-- Tool Card 1 -->
-        <div class="tool-card coming-soon" data-tool="performance">
+        <!-- Power System Simulator Card -->
+        <div class="tool-card pss-card" data-tool="pss" onclick="openSimulator()">
           <div class="tool-icon">
             <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M6 36L18 24L26 32L38 18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-              <circle cx="38" cy="18" r="3" fill="currentColor"/>
-              <path d="M6 42H42" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <!-- Power/Lightning bolt -->
+              <path d="M28 4L12 26H22L18 44L38 20H27L28 4Z" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round" fill="none"/>
+              <!-- Circle around it -->
+              <circle cx="24" cy="24" r="21" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 3"/>
             </svg>
           </div>
-          <h3>Performance Analyzer</h3>
-          <p>Profile and benchmark web application performance metrics in real time.</p>
-          <div class="tool-badge">Coming Soon</div>
-        </div>
-
-        <!-- Tool Card 2 -->
-        <div class="tool-card coming-soon" data-tool="seo">
-          <div class="tool-icon">
-            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="22" cy="22" r="13" stroke="currentColor" stroke-width="2.5"/>
-              <path d="M31 31L42 42" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-              <path d="M16 22H28M22 16V28" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-            </svg>
-          </div>
-          <h3>SEO Inspector</h3>
-          <p>Audit metadata, structured data, and search engine optimization factors.</p>
-          <div class="tool-badge">Coming Soon</div>
-        </div>
-
-        <!-- Tool Card 3 -->
-        <div class="tool-card coming-soon" data-tool="api">
-          <div class="tool-icon">
-            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="6" y="14" width="16" height="20" rx="3" stroke="currentColor" stroke-width="2.5"/>
-              <rect x="26" y="14" width="16" height="20" rx="3" stroke="currentColor" stroke-width="2.5"/>
-              <path d="M22 24H26" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-              <path d="M10 22H18M10 26H15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-              <path d="M30 22H38M30 26H35" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
-          </div>
-          <h3>API Tester</h3>
-          <p>Send requests, inspect responses, and document REST &amp; GraphQL endpoints.</p>
-          <div class="tool-badge">Coming Soon</div>
-        </div>
-
-        <!-- Tool Card 4 -->
-        <div class="tool-card coming-soon" data-tool="accessibility">
-          <div class="tool-icon">
-            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="24" cy="10" r="4" stroke="currentColor" stroke-width="2.5"/>
-              <path d="M10 20H38" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-              <path d="M24 20V38" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-              <path d="M14 38L24 28L34 38" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </div>
-          <h3>Accessibility Checker</h3>
-          <p>Validate WCAG compliance, contrast ratios, and keyboard navigation.</p>
-          <div class="tool-badge">Coming Soon</div>
-        </div>
-
-        <!-- Tool Card 5 -->
-        <div class="tool-card coming-soon" data-tool="security">
-          <div class="tool-icon">
-            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M24 6L8 12V24C8 33.941 15.163 41.824 24 44C32.837 41.824 40 33.941 40 24V12L24 6Z" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
-              <path d="M17 24L22 29L32 19" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </div>
-          <h3>Security Scanner</h3>
-          <p>Detect headers misconfiguration, exposed secrets, and common vulnerabilities.</p>
-          <div class="tool-badge">Coming Soon</div>
-        </div>
-
-        <!-- Tool Card 6 -->
-        <div class="tool-card coming-soon" data-tool="bundle">
-          <div class="tool-icon">
-            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="8" y="8" width="14" height="14" rx="2" stroke="currentColor" stroke-width="2.5"/>
-              <rect x="26" y="8" width="14" height="14" rx="2" stroke="currentColor" stroke-width="2.5"/>
-              <rect x="8" y="26" width="14" height="14" rx="2" stroke="currentColor" stroke-width="2.5"/>
-              <rect x="26" y="26" width="14" height="14" rx="2" stroke="currentColor" stroke-width="2.5"/>
-            </svg>
-          </div>
-          <h3>Bundle Analyzer</h3>
-          <p>Visualize JavaScript bundle composition and identify dead code.</p>
-          <div class="tool-badge">Coming Soon</div>
+          <h3>Power System Simulator</h3>
+          <p>Complete steady-state analysis: Single Line Diagram drawing, Power Flow (Newton-Raphson), Short Circuit (IEC 60909), Voltage Drop &amp; Cable Sizing, and Protection Coordination.</p>
+          <div class="tool-badge active-badge">Launch Tool</div>
         </div>
 
       </div>
     </main>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════
+       SIMULATOR SCREEN
+  ════════════════════════════════════════════════════ -->
+  <div id="simulator-screen" class="screen">
+    <!-- Simulator Top Bar -->
+    <nav class="top-nav sim-nav">
+      <div class="nav-brand">
+        <div class="logo-mark small"></div>
+        <span>KIT</span>
+        <span class="sim-separator">|</span>
+        <span class="sim-label">Power System Simulator</span>
+      </div>
+      <div class="sim-tabs" id="sim-tabs">
+        <button class="sim-tab active" data-tab="sld">SLD</button>
+        <button class="sim-tab" data-tab="pf">Power Flow</button>
+        <button class="sim-tab" data-tab="sc">Short Circuit</button>
+        <button class="sim-tab" data-tab="vd">Voltage Drop</button>
+        <button class="sim-tab" data-tab="prot">Protection</button>
+      </div>
+      <div class="nav-user">
+        <button class="logout-btn" onclick="closeSimulator()">Back to Dashboard</button>
+      </div>
+    </nav>
+
+    <!-- Simulator Body -->
+    <div class="sim-body">
+
+      <!-- ── SLD Tab ─────────────────────────────────────── -->
+      <div class="sim-panel active" id="panel-sld">
+        <div class="sim-toolbar" id="sld-toolbar">
+          <span class="toolbar-title">Components</span>
+          <button class="tb-btn" data-comp="bus" title="Bus Bar">
+            <svg viewBox="0 0 24 24" width="20" height="20"><line x1="4" y1="12" x2="20" y2="12" stroke="currentColor" stroke-width="3"/></svg>
+            Bus
+          </button>
+          <button class="tb-btn" data-comp="generator" title="Generator">
+            <svg viewBox="0 0 24 24" width="20" height="20"><circle cx="12" cy="12" r="7" stroke="currentColor" stroke-width="1.5" fill="none"/><text x="12" y="16" text-anchor="middle" font-size="10" fill="currentColor">G</text></svg>
+            Gen
+          </button>
+          <button class="tb-btn" data-comp="transformer" title="Transformer">
+            <svg viewBox="0 0 24 24" width="20" height="20"><circle cx="10" cy="12" r="5" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="14" cy="12" r="5" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+            Xfmr
+          </button>
+          <button class="tb-btn" data-comp="load" title="Load">
+            <svg viewBox="0 0 24 24" width="20" height="20"><polygon points="12,4 4,20 20,20" stroke="currentColor" stroke-width="1.5" fill="none"/></svg>
+            Load
+          </button>
+          <button class="tb-btn" data-comp="line" title="Transmission Line">
+            <svg viewBox="0 0 24 24" width="20" height="20"><line x1="2" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="1.5"/></svg>
+            Line
+          </button>
+          <button class="tb-btn" data-comp="cable" title="Cable">
+            <svg viewBox="0 0 24 24" width="20" height="20"><line x1="2" y1="12" x2="22" y2="12" stroke="currentColor" stroke-width="2" stroke-dasharray="3 2"/></svg>
+            Cable
+          </button>
+          <button class="tb-btn" data-comp="motor" title="Motor">
+            <svg viewBox="0 0 24 24" width="20" height="20"><circle cx="12" cy="12" r="7" stroke="currentColor" stroke-width="1.5" fill="none"/><text x="12" y="16" text-anchor="middle" font-size="10" fill="currentColor">M</text></svg>
+            Motor
+          </button>
+          <span class="toolbar-divider"></span>
+          <button class="tb-btn" data-comp="switch" title="Switch / Disconnector">
+            <svg viewBox="0 0 24 24" width="20" height="20"><circle cx="8" cy="12" r="2" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="16" cy="12" r="2" stroke="currentColor" stroke-width="1.5" fill="none"/><line x1="10" y1="12" x2="14" y2="6" stroke="currentColor" stroke-width="1.5"/></svg>
+            Switch
+          </button>
+          <button class="tb-btn" data-comp="breaker" title="Circuit Breaker">
+            <svg viewBox="0 0 24 24" width="20" height="20"><rect x="7" y="7" width="10" height="10" stroke="currentColor" stroke-width="1.5" fill="none"/><line x1="9" y1="9" x2="15" y2="15" stroke="currentColor" stroke-width="1.2"/><line x1="15" y1="9" x2="9" y2="15" stroke="currentColor" stroke-width="1.2"/></svg>
+            CB
+          </button>
+          <button class="tb-btn" data-comp="ct" title="Current Transformer">
+            <svg viewBox="0 0 24 24" width="20" height="20"><circle cx="12" cy="12" r="6" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1" fill="none"/><line x1="12" y1="4" x2="12" y2="20" stroke="currentColor" stroke-width="1.5"/></svg>
+            CT
+          </button>
+          <button class="tb-btn" data-comp="relay" title="Protective Relay">
+            <svg viewBox="0 0 24 24" width="20" height="20"><rect x="6" y="8" width="12" height="8" stroke="currentColor" stroke-width="1.5" fill="none"/><text x="12" y="15" text-anchor="middle" font-size="7" fill="currentColor">OC</text></svg>
+            Relay
+          </button>
+          <div class="toolbar-spacer"></div>
+          <button class="tb-btn tb-action" id="btn-wire" title="Wire mode — connect components visually">Wire</button>
+          <button class="tb-btn tb-action" id="btn-rotate" title="Rotate selected (Ctrl+R)">Rotate</button>
+          <button class="tb-btn tb-action" id="btn-delete" title="Delete selected">Del</button>
+          <button class="tb-btn tb-action" id="btn-clear" title="Clear all">Clear</button>
+        </div>
+        <div class="sld-workspace">
+          <canvas id="sld-canvas"></canvas>
+          <div class="sld-status" id="sld-status">Click a component, then click on the canvas to place it. Drag to move. Click two components to connect.</div>
+        </div>
+        <!-- Properties Panel -->
+        <div class="sim-props" id="sld-props">
+          <h4>Properties</h4>
+          <div id="props-content"><p class="props-empty">Select a component to edit its properties</p></div>
+        </div>
+      </div>
+
+      <!-- ── Power Flow Tab ──────────────────────────────── -->
+      <div class="sim-panel" id="panel-pf">
+        <div class="sim-toolbar">
+          <span class="toolbar-title">Power Flow Analysis</span>
+          <button class="tb-btn tb-action" id="btn-run-pf">Run Power Flow</button>
+          <button class="tb-btn tb-action" id="btn-export-pf">Export Results</button>
+        </div>
+        <div class="mini-sld-container"><canvas id="mini-sld-pf"></canvas></div>
+        <div class="pf-content">
+          <div class="pf-settings">
+            <h4>Settings</h4>
+            <div class="form-row">
+              <label>Method</label>
+              <select id="pf-method">
+                <option value="nr">Newton-Raphson</option>
+                <option value="gs">Gauss-Seidel</option>
+                <option value="fdlf">Fast Decoupled</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label>Max Iterations</label>
+              <input type="number" id="pf-maxiter" value="100" min="1" max="1000"/>
+            </div>
+            <div class="form-row">
+              <label>Tolerance (p.u.)</label>
+              <input type="number" id="pf-tol" value="0.0001" step="0.0001" min="0.00001"/>
+            </div>
+            <div class="form-row">
+              <label>Base MVA</label>
+              <input type="number" id="pf-basemva" value="100" min="1"/>
+            </div>
+          </div>
+          <div class="pf-results" id="pf-results">
+            <h4>Results</h4>
+            <p class="results-empty">Run power flow to see results</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Short Circuit Tab ───────────────────────────── -->
+      <div class="sim-panel" id="panel-sc">
+        <div class="sim-toolbar">
+          <span class="toolbar-title">Short Circuit Analysis — IEC 60909</span>
+          <button class="tb-btn tb-action" id="btn-run-sc">Run SC Analysis</button>
+          <button class="tb-btn tb-action" id="btn-export-sc">Export Results</button>
+        </div>
+        <div class="mini-sld-container"><canvas id="mini-sld-sc"></canvas></div>
+        <div class="sc-content">
+          <div class="sc-settings">
+            <h4>Fault Settings</h4>
+            <div class="form-row">
+              <label>Fault Type</label>
+              <select id="sc-faulttype">
+                <option value="3ph">Three-Phase (Ik")</option>
+                <option value="slg">Single Line-to-Ground</option>
+                <option value="ll">Line-to-Line</option>
+                <option value="llg">Double Line-to-Ground</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label>Faulted Bus</label>
+              <select id="sc-faultbus"><option value="">— Select Bus —</option></select>
+            </div>
+            <div class="form-row">
+              <label>Voltage Factor c</label>
+              <select id="sc-cfactor">
+                <option value="1.1">cmax = 1.1 (MV/HV)</option>
+                <option value="1.05">cmax = 1.05 (LV)</option>
+                <option value="1.0">c = 1.0 (min)</option>
+              </select>
+            </div>
+          </div>
+          <div class="sc-results" id="sc-results">
+            <h4>Results</h4>
+            <p class="results-empty">Run short circuit analysis to see results</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Voltage Drop Tab ────────────────────────────── -->
+      <div class="sim-panel" id="panel-vd">
+        <div class="sim-toolbar">
+          <span class="toolbar-title">Voltage Drop &amp; Cable Sizing</span>
+          <button class="tb-btn tb-action" id="btn-calc-vd">Calculate</button>
+          <button class="tb-btn tb-action" id="btn-export-vd">Export</button>
+        </div>
+        <div class="mini-sld-container"><canvas id="mini-sld-vd"></canvas></div>
+        <div class="vd-content">
+          <div class="vd-settings">
+            <h4>Cable Parameters</h4>
+            <div class="form-row">
+              <label>System Voltage (V)</label>
+              <input type="number" id="vd-voltage" value="400" min="1"/>
+            </div>
+            <div class="form-row">
+              <label>Phases</label>
+              <select id="vd-phases">
+                <option value="3">Three Phase</option>
+                <option value="1">Single Phase</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label>Load Current (A)</label>
+              <input type="number" id="vd-current" value="100" min="0.1" step="0.1"/>
+            </div>
+            <div class="form-row">
+              <label>Power Factor</label>
+              <input type="number" id="vd-pf" value="0.85" min="0.1" max="1" step="0.01"/>
+            </div>
+            <div class="form-row">
+              <label>Cable Length (m)</label>
+              <input type="number" id="vd-length" value="100" min="1"/>
+            </div>
+            <div class="form-row">
+              <label>Conductor Material</label>
+              <select id="vd-material">
+                <option value="cu">Copper</option>
+                <option value="al">Aluminium</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label>Cable Size (mm²)</label>
+              <select id="vd-size">
+                <option value="1.5">1.5</option>
+                <option value="2.5">2.5</option>
+                <option value="4">4</option>
+                <option value="6">6</option>
+                <option value="10">10</option>
+                <option value="16">16</option>
+                <option value="25">25</option>
+                <option value="35">35</option>
+                <option value="50">50</option>
+                <option value="70">70</option>
+                <option value="95">95</option>
+                <option value="120">120</option>
+                <option value="150">150</option>
+                <option value="185">185</option>
+                <option value="240">240</option>
+                <option value="300">300</option>
+                <option value="400">400</option>
+                <option value="500">500</option>
+                <option value="630">630</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label>Max Allowed VD (%)</label>
+              <input type="number" id="vd-maxdrop" value="5" min="0.1" max="20" step="0.1"/>
+            </div>
+          </div>
+          <div class="vd-results" id="vd-results">
+            <h4>Results</h4>
+            <p class="results-empty">Enter parameters and click Calculate</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Protection Tab ──────────────────────────────── -->
+      <div class="sim-panel" id="panel-prot">
+        <div class="sim-toolbar">
+          <span class="toolbar-title">Protection Coordination</span>
+          <button class="tb-btn tb-action" id="btn-add-device">Add Device</button>
+          <button class="tb-btn tb-action" id="btn-plot-tcc">Plot TCC</button>
+        </div>
+        <div class="mini-sld-container"><canvas id="mini-sld-prot"></canvas></div>
+        <div class="prot-content">
+          <div class="prot-devices" id="prot-devices">
+            <h4>Protection Devices</h4>
+            <p class="results-empty">Add protection devices to begin coordination</p>
+          </div>
+          <div class="prot-chart">
+            <h4>Time-Current Characteristic (TCC)</h4>
+            <canvas id="tcc-canvas"></canvas>
+          </div>
+        </div>
+      </div>
+
+    </div>
   </div>
 
   <!-- Dashboard background particle canvas -->
@@ -196,5 +396,6 @@
 
   <script src="galaxy.js"></script>
   <script src="app.js"></script>
+  <script src="simulator.js"></script>
 </body>
 </html>
