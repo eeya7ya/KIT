@@ -178,7 +178,26 @@
             <svg viewBox="0 0 24 24" width="20" height="20"><circle cx="12" cy="12" r="7" stroke="currentColor" stroke-width="1.5" fill="none"/><text x="12" y="16" text-anchor="middle" font-size="10" fill="currentColor">M</text></svg>
             Motor
           </button>
+          <span class="toolbar-divider"></span>
+          <button class="tb-btn" data-comp="switch" title="Switch / Disconnector">
+            <svg viewBox="0 0 24 24" width="20" height="20"><circle cx="8" cy="12" r="2" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="16" cy="12" r="2" stroke="currentColor" stroke-width="1.5" fill="none"/><line x1="10" y1="12" x2="14" y2="6" stroke="currentColor" stroke-width="1.5"/></svg>
+            Switch
+          </button>
+          <button class="tb-btn" data-comp="breaker" title="Circuit Breaker">
+            <svg viewBox="0 0 24 24" width="20" height="20"><rect x="7" y="7" width="10" height="10" stroke="currentColor" stroke-width="1.5" fill="none"/><line x1="9" y1="9" x2="15" y2="15" stroke="currentColor" stroke-width="1.2"/><line x1="15" y1="9" x2="9" y2="15" stroke="currentColor" stroke-width="1.2"/></svg>
+            CB
+          </button>
+          <button class="tb-btn" data-comp="ct" title="Current Transformer">
+            <svg viewBox="0 0 24 24" width="20" height="20"><circle cx="12" cy="12" r="6" stroke="currentColor" stroke-width="1.5" fill="none"/><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1" fill="none"/><line x1="12" y1="4" x2="12" y2="20" stroke="currentColor" stroke-width="1.5"/></svg>
+            CT
+          </button>
+          <button class="tb-btn" data-comp="relay" title="Protective Relay">
+            <svg viewBox="0 0 24 24" width="20" height="20"><rect x="6" y="8" width="12" height="8" stroke="currentColor" stroke-width="1.5" fill="none"/><text x="12" y="15" text-anchor="middle" font-size="7" fill="currentColor">OC</text></svg>
+            Relay
+          </button>
           <div class="toolbar-spacer"></div>
+          <button class="tb-btn tb-action" id="btn-wire" title="Wire mode — connect components visually">Wire</button>
+          <button class="tb-btn tb-action" id="btn-rotate" title="Rotate selected (Ctrl+R)">Rotate</button>
           <button class="tb-btn tb-action" id="btn-delete" title="Delete selected">Del</button>
           <button class="tb-btn tb-action" id="btn-clear" title="Clear all">Clear</button>
         </div>
@@ -200,6 +219,7 @@
           <button class="tb-btn tb-action" id="btn-run-pf">Run Power Flow</button>
           <button class="tb-btn tb-action" id="btn-export-pf">Export Results</button>
         </div>
+        <div class="mini-sld-container"><canvas id="mini-sld-pf"></canvas></div>
         <div class="pf-content">
           <div class="pf-settings">
             <h4>Settings</h4>
@@ -238,6 +258,7 @@
           <button class="tb-btn tb-action" id="btn-run-sc">Run SC Analysis</button>
           <button class="tb-btn tb-action" id="btn-export-sc">Export Results</button>
         </div>
+        <div class="mini-sld-container"><canvas id="mini-sld-sc"></canvas></div>
         <div class="sc-content">
           <div class="sc-settings">
             <h4>Fault Settings</h4>
@@ -277,6 +298,7 @@
           <button class="tb-btn tb-action" id="btn-calc-vd">Calculate</button>
           <button class="tb-btn tb-action" id="btn-export-vd">Export</button>
         </div>
+        <div class="mini-sld-container"><canvas id="mini-sld-vd"></canvas></div>
         <div class="vd-content">
           <div class="vd-settings">
             <h4>Cable Parameters</h4>
@@ -353,6 +375,7 @@
           <button class="tb-btn tb-action" id="btn-add-device">Add Device</button>
           <button class="tb-btn tb-action" id="btn-plot-tcc">Plot TCC</button>
         </div>
+        <div class="mini-sld-container"><canvas id="mini-sld-prot"></canvas></div>
         <div class="prot-content">
           <div class="prot-devices" id="prot-devices">
             <h4>Protection Devices</h4>

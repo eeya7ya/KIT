@@ -17,13 +17,17 @@
 
 const PSS = {
   // Network model — shared across all modules
-  buses: [],        // {id, name, x, y, type:'slack'|'pv'|'pq', vpu, angle, pgen, qgen, pload, qload, vnom_kv}
-  generators: [],   // {id, name, busId, x, y, pgen, qgen, xd_pu, vset}
-  transformers: [], // {id, name, from, to, x, y, srated_mva, vhv_kv, vlv_kv, zpu, tappu}
-  loads: [],        // {id, name, busId, x, y, pload_mw, qload_mvar}
-  lines: [],        // {id, name, from, to, r_pu, x_pu, b_pu, length_km, ratedI}
-  cables: [],       // {id, name, from, to, r_ohm_km, x_ohm_km, length_km, size_mm2, material}
-  motors: [],       // {id, name, busId, x, y, prated_kw, eff, pf, xlr}
+  buses: [],        // {id, name, x, y, rotation, type:'slack'|'pv'|'pq', vpu, angle, pgen, qgen, pload, qload, vnom_kv}
+  generators: [],   // {id, name, busId, x, y, rotation, pgen, qgen, xd_pu, vset}
+  transformers: [], // {id, name, from, to, x, y, rotation, srated_mva, vhv_kv, vlv_kv, zpu, tappu}
+  loads: [],        // {id, name, busId, x, y, rotation, pload_mw, qload_mvar}
+  lines: [],        // {id, name, from, to, x, y, rotation, r_pu, x_pu, b_pu, length_km, ratedI}
+  cables: [],       // {id, name, from, to, x, y, rotation, r_ohm_km, x_ohm_km, length_km, size_mm2, material}
+  motors: [],       // {id, name, busId, x, y, rotation, prated_kw, eff, pf, xlr}
+  switches: [],     // {id, name, x, y, rotation, state:'open'|'closed', from, to, ratedI, ratedV_kv}
+  breakers: [],     // {id, name, x, y, rotation, state:'open'|'closed', from, to, ratedI, ratedV_kv, breakingCapacity_kA}
+  cts: [],          // {id, name, x, y, rotation, busId, ratio_primary, ratio_secondary, accuracy_class, burden_va}
+  relays: [],       // {id, name, x, y, rotation, busId, relayType:'overcurrent'|'differential'|'distance', pickup, tms, curveType}
   connections: [],  // {fromId, toId} — visual connections
 
   // SLD state
@@ -32,6 +36,8 @@ const PSS = {
   selectedObj: null,   // selected object on canvas
   dragging: null,
   connectMode: null,   // first object for connection
+  wireMode: false,     // wire drawing mode
+  wireStart: null,     // first object in wire mode
 
   // Protection devices
   protDevices: [],
@@ -70,8 +76,94 @@ function initTabs() {
 
       if (tab.dataset.tab === 'sld') resizeSLDCanvas();
       if (tab.dataset.tab === 'prot') resizeTCCCanvas();
+
+      // Resize mini-SLD canvases in analysis tabs
+      requestAnimationFrame(() => resizeMiniSLDs());
     });
   });
+}
+
+/* ── Mini-SLD canvases in analysis tabs ───────────── */
+function resizeMiniSLDs() {
+  ['pf', 'sc', 'vd', 'prot'].forEach(tab => {
+    const canvas = document.getElementById('mini-sld-' + tab);
+    if (!canvas) return;
+    const parent = canvas.parentElement;
+    canvas.width = parent.clientWidth;
+    canvas.height = parent.clientHeight;
+    drawMiniSLD(canvas);
+  });
+}
+
+function drawMiniSLD(canvas) {
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width;
+  const H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+
+  // Background
+  ctx.fillStyle = '#080808';
+  ctx.fillRect(0, 0, W, H);
+
+  // Calculate bounding box to scale the SLD to fit
+  const all = getAllObjects();
+  if (all.length === 0) {
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.font = '12px Segoe UI, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('No components placed on SLD', W / 2, H / 2);
+    return;
+  }
+
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const obj of all) {
+    minX = Math.min(minX, obj.x - 40);
+    minY = Math.min(minY, obj.y - 40);
+    maxX = Math.max(maxX, obj.x + 40);
+    maxY = Math.max(maxY, obj.y + 40);
+  }
+
+  const sldW = maxX - minX || 1;
+  const sldH = maxY - minY || 1;
+  const pad = 20;
+  const scaleX = (W - 2 * pad) / sldW;
+  const scaleY = (H - 2 * pad) / sldH;
+  const scale = Math.min(scaleX, scaleY, 1.5);
+  const offX = pad + ((W - 2 * pad) - sldW * scale) / 2 - minX * scale;
+  const offY = pad + ((H - 2 * pad) - sldH * scale) / 2 - minY * scale;
+
+  ctx.save();
+  ctx.translate(offX, offY);
+  ctx.scale(scale, scale);
+
+  // Draw connections
+  ctx.strokeStyle = 'rgba(255,215,0,0.4)';
+  ctx.lineWidth = 2 / scale;
+  for (const conn of PSS.connections) {
+    const a = findObjById(conn.fromId);
+    const b = findObjById(conn.toId);
+    if (a && b) {
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(b.x, b.y);
+      ctx.stroke();
+    }
+  }
+
+  // Draw components (mini versions)
+  for (const bus of PSS.buses) drawBus(ctx, bus, 1 / scale);
+  for (const gen of PSS.generators) drawGenerator(ctx, gen, 1 / scale);
+  for (const xfmr of PSS.transformers) drawTransformer(ctx, xfmr, 1 / scale);
+  for (const load of PSS.loads) drawLoad(ctx, load, 1 / scale);
+  for (const motor of PSS.motors) drawMotor(ctx, motor, 1 / scale);
+  for (const line of PSS.lines) drawLine(ctx, line, 1 / scale);
+  for (const cable of PSS.cables) drawCable(ctx, cable, 1 / scale);
+  for (const sw of PSS.switches) drawSwitch(ctx, sw, 1 / scale);
+  for (const cb of PSS.breakers) drawBreaker(ctx, cb, 1 / scale);
+  for (const ct of PSS.cts) drawCT(ctx, ct, 1 / scale);
+  for (const relay of PSS.relays) drawRelay(ctx, relay, 1 / scale);
+
+  ctx.restore();
 }
 
 /* ════════════════════════════════════════════════════════
@@ -83,13 +175,16 @@ function initSLD() {
   PSS.sldCtx = PSS.sldCanvas.getContext('2d');
 
   resizeSLDCanvas();
-  window.addEventListener('resize', resizeSLDCanvas);
+  window.addEventListener('resize', () => { resizeSLDCanvas(); resizeMiniSLDs(); });
 
   // Toolbar buttons
   document.querySelectorAll('#sld-toolbar .tb-btn[data-comp]').forEach(btn => {
     btn.addEventListener('click', () => {
       const wasActive = btn.classList.contains('active');
       document.querySelectorAll('#sld-toolbar .tb-btn[data-comp]').forEach(b => b.classList.remove('active'));
+      PSS.wireMode = false;
+      const wireBtn = document.getElementById('btn-wire');
+      if (wireBtn) wireBtn.classList.remove('active');
       if (!wasActive) {
         btn.classList.add('active');
         PSS.selectedComp = btn.dataset.comp;
@@ -104,13 +199,59 @@ function initSLD() {
   document.getElementById('btn-delete').addEventListener('click', deleteSelected);
   document.getElementById('btn-clear').addEventListener('click', clearAll);
 
+  // Wire mode button
+  const wireBtn = document.getElementById('btn-wire');
+  if (wireBtn) {
+    wireBtn.addEventListener('click', () => {
+      PSS.wireMode = !PSS.wireMode;
+      wireBtn.classList.toggle('active', PSS.wireMode);
+      if (PSS.wireMode) {
+        document.querySelectorAll('#sld-toolbar .tb-btn[data-comp]').forEach(b => b.classList.remove('active'));
+        PSS.selectedComp = null;
+        PSS.wireStart = null;
+        updateStatus('Wire mode — Click a component to start, click another to connect');
+      } else {
+        PSS.wireStart = null;
+        updateStatus();
+      }
+      drawSLD();
+    });
+  }
+
+  // Rotate button
+  const rotateBtn = document.getElementById('btn-rotate');
+  if (rotateBtn) {
+    rotateBtn.addEventListener('click', rotateSelected);
+  }
+
   // Canvas events
   PSS.sldCanvas.addEventListener('mousedown', sldMouseDown);
   PSS.sldCanvas.addEventListener('mousemove', sldMouseMove);
   PSS.sldCanvas.addEventListener('mouseup', sldMouseUp);
   PSS.sldCanvas.addEventListener('dblclick', sldDoubleClick);
 
+  // Keyboard shortcut: Ctrl+R to rotate selected component
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.key === 'r') {
+      e.preventDefault();
+      rotateSelected();
+    }
+    if (e.key === 'Delete') {
+      deleteSelected();
+    }
+  });
+
   drawSLD();
+}
+
+function rotateSelected() {
+  if (!PSS.selectedObj) { updateStatus('Select a component first, then press Ctrl+R to rotate'); return; }
+  const real = findObjById(PSS.selectedObj.id);
+  if (!real) return;
+  real.rotation = ((real.rotation || 0) + 90) % 360;
+  updateStatus(real.name + ' rotated to ' + real.rotation + '\u00B0');
+  drawSLD();
+  resizeMiniSLDs();
 }
 
 function resizeSLDCanvas() {
@@ -129,7 +270,7 @@ function updateStatus(msg) {
   } else if (PSS.connectMode) {
     el.textContent = 'Connection mode — Click a second component to connect';
   } else {
-    el.textContent = 'Click a component button, then click canvas to place. Double-click to connect. Drag to move.';
+    el.textContent = 'Click component to place. Use Wire to connect. Ctrl+R to rotate. Drag to move.';
   }
 }
 
@@ -150,11 +291,17 @@ function getAllObjects() {
     ...PSS.transformers.map(o => ({...o, _type: 'transformer'})),
     ...PSS.loads.map(o => ({...o, _type: 'load'})),
     ...PSS.motors.map(o => ({...o, _type: 'motor'})),
+    ...PSS.lines.map(o => ({...o, _type: 'line'})),
+    ...PSS.cables.map(o => ({...o, _type: 'cable'})),
+    ...PSS.switches.map(o => ({...o, _type: 'switch'})),
+    ...PSS.breakers.map(o => ({...o, _type: 'breaker'})),
+    ...PSS.cts.map(o => ({...o, _type: 'ct'})),
+    ...PSS.relays.map(o => ({...o, _type: 'relay'})),
   ];
 }
 
 function findObjById(id) {
-  for (const arr of [PSS.buses, PSS.generators, PSS.transformers, PSS.loads, PSS.motors]) {
+  for (const arr of [PSS.buses, PSS.generators, PSS.transformers, PSS.loads, PSS.motors, PSS.lines, PSS.cables, PSS.switches, PSS.breakers, PSS.cts, PSS.relays]) {
     const found = arr.find(o => o.id === id);
     if (found) return found;
   }
@@ -167,6 +314,12 @@ function getObjType(id) {
   if (PSS.transformers.find(o => o.id === id)) return 'transformer';
   if (PSS.loads.find(o => o.id === id)) return 'load';
   if (PSS.motors.find(o => o.id === id)) return 'motor';
+  if (PSS.lines.find(o => o.id === id)) return 'line';
+  if (PSS.cables.find(o => o.id === id)) return 'cable';
+  if (PSS.switches.find(o => o.id === id)) return 'switch';
+  if (PSS.breakers.find(o => o.id === id)) return 'breaker';
+  if (PSS.cts.find(o => o.id === id)) return 'ct';
+  if (PSS.relays.find(o => o.id === id)) return 'relay';
   return null;
 }
 
@@ -178,6 +331,28 @@ function sldMouseDown(e) {
 
   if (PSS.selectedComp) {
     placeComponent(PSS.selectedComp, x, y);
+    return;
+  }
+
+  // Wire mode: click components to connect them
+  if (PSS.wireMode) {
+    const obj = getObjAt(x, y);
+    if (obj) {
+      if (!PSS.wireStart) {
+        PSS.wireStart = obj;
+        updateStatus('Wire from ' + obj.name + ' — Click another component to connect');
+        PSS.selectedObj = obj;
+        drawSLD();
+      } else {
+        if (PSS.wireStart.id !== obj.id) {
+          PSS.connections.push({ fromId: PSS.wireStart.id, toId: obj.id });
+          updateStatus('Connected ' + PSS.wireStart.name + ' → ' + obj.name);
+          resizeMiniSLDs();
+        }
+        PSS.wireStart = null;
+        drawSLD();
+      }
+    }
     return;
   }
 
@@ -210,7 +385,10 @@ function sldMouseMove(e) {
 }
 
 function sldMouseUp() {
-  PSS.dragging = null;
+  if (PSS.dragging) {
+    PSS.dragging = null;
+    resizeMiniSLDs();
+  }
 }
 
 function sldDoubleClick(e) {
@@ -236,34 +414,42 @@ function sldDoubleClick(e) {
 /* ── Place Component ───────────────────────────────── */
 function placeComponent(type, x, y) {
   const id = PSS.nextId++;
-  const name = type.charAt(0).toUpperCase() + type.slice(1) + ' ' + id;
+  const typeLabels = { bus: 'Bus', generator: 'Gen', transformer: 'Xfmr', load: 'Load', line: 'Line', cable: 'Cable', motor: 'Motor', switch: 'SW', breaker: 'CB', ct: 'CT', relay: 'Relay' };
+  const name = (typeLabels[type] || type) + ' ' + id;
 
   switch (type) {
     case 'bus':
-      PSS.buses.push({ id, name, x, y, type: PSS.buses.length === 0 ? 'slack' : 'pq', vpu: 1.0, angle: 0, pgen: 0, qgen: 0, pload: 0, qload: 0, vnom_kv: 11 });
+      PSS.buses.push({ id, name, x, y, rotation: 0, type: PSS.buses.length === 0 ? 'slack' : 'pq', vpu: 1.0, angle: 0, pgen: 0, qgen: 0, pload: 0, qload: 0, vnom_kv: 11 });
       break;
     case 'generator':
-      PSS.generators.push({ id, name, busId: null, x, y, pgen: 50, qgen: 0, xd_pu: 0.15, vset: 1.0 });
+      PSS.generators.push({ id, name, busId: null, x, y, rotation: 0, pgen: 50, qgen: 0, xd_pu: 0.15, vset: 1.0 });
       break;
     case 'transformer':
-      PSS.transformers.push({ id, name, from: null, to: null, x, y, srated_mva: 10, vhv_kv: 33, vlv_kv: 11, zpu: 0.06, tappu: 1.0 });
+      PSS.transformers.push({ id, name, from: null, to: null, x, y, rotation: 0, srated_mva: 10, vhv_kv: 33, vlv_kv: 11, zpu: 0.06, tappu: 1.0 });
       break;
     case 'load':
-      PSS.loads.push({ id, name, busId: null, x, y, pload_mw: 5, qload_mvar: 2 });
+      PSS.loads.push({ id, name, busId: null, x, y, rotation: 0, pload_mw: 5, qload_mvar: 2 });
       break;
     case 'line':
-      PSS.lines.push({ id, name, from: null, to: null, r_pu: 0.01, x_pu: 0.1, b_pu: 0.02, length_km: 10, ratedI: 400 });
-      // Lines don't have x,y — they're connections
-      updateStatus('Line added — set From/To buses in properties');
-      drawSLD();
-      return;
+      PSS.lines.push({ id, name, from: null, to: null, x, y, rotation: 0, r_pu: 0.01, x_pu: 0.1, b_pu: 0.02, length_km: 10, ratedI: 400 });
+      break;
     case 'cable':
-      PSS.cables.push({ id, name, from: null, to: null, r_ohm_km: 0.193, x_ohm_km: 0.08, length_km: 0.5, size_mm2: 95, material: 'cu' });
-      updateStatus('Cable added — set From/To buses in properties');
-      drawSLD();
-      return;
+      PSS.cables.push({ id, name, from: null, to: null, x, y, rotation: 0, r_ohm_km: 0.193, x_ohm_km: 0.08, length_km: 0.5, size_mm2: 95, material: 'cu' });
+      break;
     case 'motor':
-      PSS.motors.push({ id, name, busId: null, x, y, prated_kw: 100, eff: 0.92, pf: 0.85, xlr: 6 });
+      PSS.motors.push({ id, name, busId: null, x, y, rotation: 0, prated_kw: 100, eff: 0.92, pf: 0.85, xlr: 6 });
+      break;
+    case 'switch':
+      PSS.switches.push({ id, name, x, y, rotation: 0, state: 'closed', from: null, to: null, ratedI: 400, ratedV_kv: 11 });
+      break;
+    case 'breaker':
+      PSS.breakers.push({ id, name, x, y, rotation: 0, state: 'closed', from: null, to: null, ratedI: 630, ratedV_kv: 11, breakingCapacity_kA: 25 });
+      break;
+    case 'ct':
+      PSS.cts.push({ id, name, x, y, rotation: 0, busId: null, ratio_primary: 200, ratio_secondary: 5, accuracy_class: '5P20', burden_va: 15 });
+      break;
+    case 'relay':
+      PSS.relays.push({ id, name, x, y, rotation: 0, busId: null, relayType: 'overcurrent', pickup: 100, tms: 0.1, curveType: 'si' });
       break;
   }
 
@@ -273,6 +459,7 @@ function placeComponent(type, x, y) {
   updateStatus(name + ' placed');
   drawSLD();
   syncBusSelectors();
+  resizeMiniSLDs();
 }
 
 function deleteSelected() {
@@ -285,22 +472,29 @@ function deleteSelected() {
   PSS.motors = PSS.motors.filter(o => o.id !== id);
   PSS.lines = PSS.lines.filter(o => o.id !== id);
   PSS.cables = PSS.cables.filter(o => o.id !== id);
+  PSS.switches = PSS.switches.filter(o => o.id !== id);
+  PSS.breakers = PSS.breakers.filter(o => o.id !== id);
+  PSS.cts = PSS.cts.filter(o => o.id !== id);
+  PSS.relays = PSS.relays.filter(o => o.id !== id);
   PSS.connections = PSS.connections.filter(c => c.fromId !== id && c.toId !== id);
   PSS.selectedObj = null;
   clearProperties();
   updateStatus('Deleted');
   drawSLD();
   syncBusSelectors();
+  resizeMiniSLDs();
 }
 
 function clearAll() {
   PSS.buses = []; PSS.generators = []; PSS.transformers = []; PSS.loads = [];
   PSS.lines = []; PSS.cables = []; PSS.motors = []; PSS.connections = [];
-  PSS.selectedObj = null; PSS.connectMode = null; PSS.nextId = 1;
+  PSS.switches = []; PSS.breakers = []; PSS.cts = []; PSS.relays = [];
+  PSS.selectedObj = null; PSS.connectMode = null; PSS.wireStart = null; PSS.nextId = 1;
   clearProperties();
   updateStatus('Canvas cleared');
   drawSLD();
   syncBusSelectors();
+  resizeMiniSLDs();
 }
 
 /* ── Draw SLD ──────────────────────────────────────── */
@@ -343,6 +537,12 @@ function drawSLD() {
   for (const xfmr of PSS.transformers) drawTransformer(ctx, xfmr);
   for (const load of PSS.loads) drawLoad(ctx, load);
   for (const motor of PSS.motors) drawMotor(ctx, motor);
+  for (const line of PSS.lines) drawLine(ctx, line);
+  for (const cable of PSS.cables) drawCable(ctx, cable);
+  for (const sw of PSS.switches) drawSwitch(ctx, sw);
+  for (const cb of PSS.breakers) drawBreaker(ctx, cb);
+  for (const ct of PSS.cts) drawCT(ctx, ct);
+  for (const relay of PSS.relays) drawRelay(ctx, relay);
 
   // Selection highlight
   if (PSS.selectedObj) {
@@ -371,18 +571,41 @@ function drawSLD() {
       ctx.setLineDash([]);
     }
   }
+
+  // Wire mode start highlight
+  if (PSS.wireMode && PSS.wireStart) {
+    const obj = findObjById(PSS.wireStart.id);
+    if (obj) {
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.arc(obj.x, obj.y, 36, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
 }
 
-function drawBus(ctx, bus) {
+function drawBus(ctx, bus, lwScale) {
+  const s = lwScale || 1;
   const isSelected = PSS.selectedObj && PSS.selectedObj.id === bus.id;
+  const rot = (bus.rotation || 0) * Math.PI / 180;
+
+  ctx.save();
+  ctx.translate(bus.x, bus.y);
+  ctx.rotate(rot);
+
   ctx.strokeStyle = isSelected ? '#FFD700' : '#ffffff';
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 3 * s;
   ctx.beginPath();
-  ctx.moveTo(bus.x - 30, bus.y);
-  ctx.lineTo(bus.x + 30, bus.y);
+  ctx.moveTo(-30, 0);
+  ctx.lineTo(30, 0);
   ctx.stroke();
 
-  // Label
+  ctx.restore();
+
+  // Labels (not rotated)
   ctx.fillStyle = '#FFD700';
   ctx.font = '11px Segoe UI, sans-serif';
   ctx.textAlign = 'center';
@@ -392,36 +615,63 @@ function drawBus(ctx, bus) {
   ctx.fillText(bus.vnom_kv + ' kV | ' + bus.type, bus.x, bus.y + 18);
 }
 
-function drawGenerator(ctx, gen) {
+function drawGenerator(ctx, gen, lwScale) {
+  const s = lwScale || 1;
   const isSelected = PSS.selectedObj && PSS.selectedObj.id === gen.id;
+  const rot = (gen.rotation || 0) * Math.PI / 180;
+
+  ctx.save();
+  ctx.translate(gen.x, gen.y);
+  ctx.rotate(rot);
+
   ctx.strokeStyle = isSelected ? '#FFD700' : '#4ade80';
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1.5 * s;
   ctx.beginPath();
-  ctx.arc(gen.x, gen.y, 18, 0, Math.PI * 2);
+  ctx.arc(0, 0, 18, 0, Math.PI * 2);
   ctx.stroke();
 
   ctx.fillStyle = isSelected ? '#FFD700' : '#4ade80';
   ctx.font = 'bold 14px Segoe UI, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('G', gen.x, gen.y);
+  ctx.fillText('G', 0, 0);
   ctx.textBaseline = 'alphabetic';
+
+  // Connection stub
+  ctx.strokeStyle = isSelected ? '#FFD700' : '#4ade80';
+  ctx.lineWidth = 1.5 * s;
+  ctx.beginPath();
+  ctx.moveTo(0, -18);
+  ctx.lineTo(0, -28);
+  ctx.stroke();
+
+  ctx.restore();
 
   ctx.fillStyle = '#FFD700';
   ctx.font = '10px Segoe UI, sans-serif';
-  ctx.fillText(gen.name, gen.x, gen.y - 24);
+  ctx.textAlign = 'center';
+  ctx.fillText(gen.name, gen.x, gen.y - 32);
 }
 
-function drawTransformer(ctx, xfmr) {
+function drawTransformer(ctx, xfmr, lwScale) {
+  const s = lwScale || 1;
   const isSelected = PSS.selectedObj && PSS.selectedObj.id === xfmr.id;
+  const rot = (xfmr.rotation || 0) * Math.PI / 180;
+
+  ctx.save();
+  ctx.translate(xfmr.x, xfmr.y);
+  ctx.rotate(rot);
+
   ctx.strokeStyle = isSelected ? '#FFD700' : '#a78bfa';
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1.5 * s;
   ctx.beginPath();
-  ctx.arc(xfmr.x - 7, xfmr.y, 14, 0, Math.PI * 2);
+  ctx.arc(-7, 0, 14, 0, Math.PI * 2);
   ctx.stroke();
   ctx.beginPath();
-  ctx.arc(xfmr.x + 7, xfmr.y, 14, 0, Math.PI * 2);
+  ctx.arc(7, 0, 14, 0, Math.PI * 2);
   ctx.stroke();
+
+  ctx.restore();
 
   ctx.fillStyle = '#FFD700';
   ctx.font = '10px Segoe UI, sans-serif';
@@ -432,44 +682,338 @@ function drawTransformer(ctx, xfmr) {
   ctx.fillText(xfmr.srated_mva + ' MVA', xfmr.x, xfmr.y + 24);
 }
 
-function drawLoad(ctx, load) {
+function drawLoad(ctx, load, lwScale) {
+  const s = lwScale || 1;
   const isSelected = PSS.selectedObj && PSS.selectedObj.id === load.id;
+  const rot = (load.rotation || 0) * Math.PI / 180;
+
+  ctx.save();
+  ctx.translate(load.x, load.y);
+  ctx.rotate(rot);
+
   ctx.strokeStyle = isSelected ? '#FFD700' : '#f87171';
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1.5 * s;
   ctx.beginPath();
-  ctx.moveTo(load.x, load.y - 14);
-  ctx.lineTo(load.x - 14, load.y + 14);
-  ctx.lineTo(load.x + 14, load.y + 14);
+  ctx.moveTo(0, -14);
+  ctx.lineTo(-14, 14);
+  ctx.lineTo(14, 14);
   ctx.closePath();
   ctx.stroke();
+
+  // Connection stub
+  ctx.beginPath();
+  ctx.moveTo(0, -14);
+  ctx.lineTo(0, -24);
+  ctx.stroke();
+
+  ctx.restore();
 
   ctx.fillStyle = '#FFD700';
   ctx.font = '10px Segoe UI, sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillText(load.name, load.x, load.y - 20);
+  ctx.fillText(load.name, load.x, load.y - 28);
   ctx.fillStyle = 'rgba(255,255,255,0.5)';
   ctx.font = '9px Segoe UI, sans-serif';
   ctx.fillText(load.pload_mw + ' MW', load.x, load.y + 28);
 }
 
-function drawMotor(ctx, motor) {
+function drawMotor(ctx, motor, lwScale) {
+  const s = lwScale || 1;
   const isSelected = PSS.selectedObj && PSS.selectedObj.id === motor.id;
+  const rot = (motor.rotation || 0) * Math.PI / 180;
+
+  ctx.save();
+  ctx.translate(motor.x, motor.y);
+  ctx.rotate(rot);
+
   ctx.strokeStyle = isSelected ? '#FFD700' : '#38bdf8';
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1.5 * s;
   ctx.beginPath();
-  ctx.arc(motor.x, motor.y, 18, 0, Math.PI * 2);
+  ctx.arc(0, 0, 18, 0, Math.PI * 2);
   ctx.stroke();
 
   ctx.fillStyle = isSelected ? '#FFD700' : '#38bdf8';
   ctx.font = 'bold 14px Segoe UI, sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText('M', motor.x, motor.y);
+  ctx.fillText('M', 0, 0);
   ctx.textBaseline = 'alphabetic';
+
+  // Connection stub
+  ctx.strokeStyle = isSelected ? '#FFD700' : '#38bdf8';
+  ctx.lineWidth = 1.5 * s;
+  ctx.beginPath();
+  ctx.moveTo(0, -18);
+  ctx.lineTo(0, -28);
+  ctx.stroke();
+
+  ctx.restore();
 
   ctx.fillStyle = '#FFD700';
   ctx.font = '10px Segoe UI, sans-serif';
-  ctx.fillText(motor.name, motor.x, motor.y - 24);
+  ctx.textAlign = 'center';
+  ctx.fillText(motor.name, motor.x, motor.y - 32);
+}
+
+/* ── New Component Drawing Functions ─────────────── */
+
+function drawLine(ctx, line, lwScale) {
+  const s = lwScale || 1;
+  if (line.x === undefined || line.y === undefined) return;
+  const isSelected = PSS.selectedObj && PSS.selectedObj.id === line.id;
+  const rot = (line.rotation || 0) * Math.PI / 180;
+
+  ctx.save();
+  ctx.translate(line.x, line.y);
+  ctx.rotate(rot);
+
+  ctx.strokeStyle = isSelected ? '#FFD700' : '#fb923c';
+  ctx.lineWidth = 1.5 * s;
+  // Transmission line symbol: zigzag
+  ctx.beginPath();
+  ctx.moveTo(-28, 0);
+  ctx.lineTo(-20, 0);
+  ctx.lineTo(-15, -8);
+  ctx.lineTo(-7, 8);
+  ctx.lineTo(1, -8);
+  ctx.lineTo(9, 8);
+  ctx.lineTo(15, -8);
+  ctx.lineTo(20, 0);
+  ctx.lineTo(28, 0);
+  ctx.stroke();
+
+  ctx.restore();
+
+  ctx.fillStyle = '#FFD700';
+  ctx.font = '10px Segoe UI, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(line.name, line.x, line.y - 16);
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.font = '9px Segoe UI, sans-serif';
+  ctx.fillText(line.length_km + ' km', line.x, line.y + 18);
+}
+
+function drawCable(ctx, cable, lwScale) {
+  const s = lwScale || 1;
+  if (cable.x === undefined || cable.y === undefined) return;
+  const isSelected = PSS.selectedObj && PSS.selectedObj.id === cable.id;
+  const rot = (cable.rotation || 0) * Math.PI / 180;
+
+  ctx.save();
+  ctx.translate(cable.x, cable.y);
+  ctx.rotate(rot);
+
+  ctx.strokeStyle = isSelected ? '#FFD700' : '#94a3b8';
+  ctx.lineWidth = 2.5 * s;
+  ctx.setLineDash([4, 3]);
+  ctx.beginPath();
+  ctx.moveTo(-28, 0);
+  ctx.lineTo(28, 0);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Small circles at ends
+  ctx.fillStyle = isSelected ? '#FFD700' : '#94a3b8';
+  ctx.beginPath();
+  ctx.arc(-28, 0, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(28, 0, 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+
+  ctx.fillStyle = '#FFD700';
+  ctx.font = '10px Segoe UI, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(cable.name, cable.x, cable.y - 14);
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.font = '9px Segoe UI, sans-serif';
+  ctx.fillText(cable.size_mm2 + ' mm\u00B2 | ' + cable.length_km + ' km', cable.x, cable.y + 18);
+}
+
+function drawSwitch(ctx, sw, lwScale) {
+  const s = lwScale || 1;
+  const isSelected = PSS.selectedObj && PSS.selectedObj.id === sw.id;
+  const rot = (sw.rotation || 0) * Math.PI / 180;
+  const closed = sw.state === 'closed';
+
+  ctx.save();
+  ctx.translate(sw.x, sw.y);
+  ctx.rotate(rot);
+
+  ctx.strokeStyle = isSelected ? '#FFD700' : (closed ? '#4ade80' : '#f87171');
+  ctx.lineWidth = 2 * s;
+
+  // Left terminal
+  ctx.beginPath();
+  ctx.moveTo(-20, 0);
+  ctx.lineTo(-8, 0);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(-8, 0, 3, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Right terminal
+  ctx.beginPath();
+  ctx.arc(8, 0, 3, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(8, 0);
+  ctx.lineTo(20, 0);
+  ctx.stroke();
+
+  // Blade
+  ctx.beginPath();
+  ctx.moveTo(-5, 0);
+  if (closed) {
+    ctx.lineTo(5, 0);
+  } else {
+    ctx.lineTo(3, -12);
+  }
+  ctx.stroke();
+
+  ctx.restore();
+
+  ctx.fillStyle = '#FFD700';
+  ctx.font = '10px Segoe UI, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(sw.name, sw.x, sw.y - 16);
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.font = '9px Segoe UI, sans-serif';
+  ctx.fillText(sw.state, sw.x, sw.y + 18);
+}
+
+function drawBreaker(ctx, cb, lwScale) {
+  const s = lwScale || 1;
+  const isSelected = PSS.selectedObj && PSS.selectedObj.id === cb.id;
+  const rot = (cb.rotation || 0) * Math.PI / 180;
+  const closed = cb.state === 'closed';
+
+  ctx.save();
+  ctx.translate(cb.x, cb.y);
+  ctx.rotate(rot);
+
+  ctx.strokeStyle = isSelected ? '#FFD700' : (closed ? '#4ade80' : '#f87171');
+  ctx.lineWidth = 2 * s;
+
+  // Square breaker symbol
+  ctx.strokeRect(-10, -10, 20, 20);
+
+  // X inside when closed, gap when open
+  if (closed) {
+    ctx.beginPath();
+    ctx.moveTo(-7, -7);
+    ctx.lineTo(7, 7);
+    ctx.moveTo(7, -7);
+    ctx.lineTo(-7, 7);
+    ctx.stroke();
+  } else {
+    ctx.beginPath();
+    ctx.moveTo(-7, 7);
+    ctx.lineTo(0, -2);
+    ctx.stroke();
+  }
+
+  // Terminals
+  ctx.beginPath();
+  ctx.moveTo(0, -10);
+  ctx.lineTo(0, -22);
+  ctx.moveTo(0, 10);
+  ctx.lineTo(0, 22);
+  ctx.stroke();
+
+  ctx.restore();
+
+  ctx.fillStyle = '#FFD700';
+  ctx.font = '10px Segoe UI, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(cb.name, cb.x, cb.y - 28);
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.font = '9px Segoe UI, sans-serif';
+  ctx.fillText(cb.ratedI + 'A | ' + cb.state, cb.x, cb.y + 32);
+}
+
+function drawCT(ctx, ct, lwScale) {
+  const s = lwScale || 1;
+  const isSelected = PSS.selectedObj && PSS.selectedObj.id === ct.id;
+  const rot = (ct.rotation || 0) * Math.PI / 180;
+
+  ctx.save();
+  ctx.translate(ct.x, ct.y);
+  ctx.rotate(rot);
+
+  ctx.strokeStyle = isSelected ? '#FFD700' : '#e879f9';
+  ctx.lineWidth = 1.5 * s;
+
+  // CT symbol: two concentric circles with line through
+  ctx.beginPath();
+  ctx.arc(0, 0, 12, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0, 0, 8, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Through conductor
+  ctx.lineWidth = 2.5 * s;
+  ctx.beginPath();
+  ctx.moveTo(0, -18);
+  ctx.lineTo(0, 18);
+  ctx.stroke();
+
+  ctx.restore();
+
+  ctx.fillStyle = '#FFD700';
+  ctx.font = '10px Segoe UI, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(ct.name, ct.x, ct.y - 24);
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.font = '9px Segoe UI, sans-serif';
+  ctx.fillText(ct.ratio_primary + '/' + ct.ratio_secondary + ' A', ct.x, ct.y + 26);
+}
+
+function drawRelay(ctx, relay, lwScale) {
+  const s = lwScale || 1;
+  const isSelected = PSS.selectedObj && PSS.selectedObj.id === relay.id;
+  const rot = (relay.rotation || 0) * Math.PI / 180;
+
+  ctx.save();
+  ctx.translate(relay.x, relay.y);
+  ctx.rotate(rot);
+
+  ctx.strokeStyle = isSelected ? '#FFD700' : '#22d3ee';
+  ctx.lineWidth = 1.5 * s;
+
+  // Relay symbol: rectangle with contacts
+  ctx.strokeRect(-14, -10, 28, 20);
+
+  // Relay type abbreviation inside
+  const typeLabels = { overcurrent: 'OC', differential: 'DF', distance: 'DZ' };
+  ctx.fillStyle = isSelected ? '#FFD700' : '#22d3ee';
+  ctx.font = 'bold 10px Segoe UI, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(typeLabels[relay.relayType] || 'R', 0, 0);
+  ctx.textBaseline = 'alphabetic';
+
+  // Contact pins
+  ctx.beginPath();
+  ctx.moveTo(0, -10);
+  ctx.lineTo(0, -20);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-8, 10);
+  ctx.lineTo(-8, 18);
+  ctx.moveTo(8, 10);
+  ctx.lineTo(8, 18);
+  ctx.stroke();
+
+  ctx.restore();
+
+  ctx.fillStyle = '#FFD700';
+  ctx.font = '10px Segoe UI, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(relay.name, relay.x, relay.y - 26);
 }
 
 /* ── Properties Panel ──────────────────────────────── */
@@ -480,6 +1024,9 @@ function showProperties(obj) {
   if (!real) return;
 
   let html = `<div class="form-row"><label>Name</label><input type="text" value="${real.name}" onchange="updateProp(${real.id},'name',this.value)"/></div>`;
+
+  // Rotation for all types
+  html += propInput(real.id, 'rotation', 'Rotation (\u00B0)', real.rotation || 0, 'number');
 
   switch (type) {
     case 'bus':
@@ -519,6 +1066,53 @@ function showProperties(obj) {
       html += propInput(real.id, 'pf', 'Power Factor', real.pf, 'number');
       html += propInput(real.id, 'xlr', 'Xlr (LRC multiple)', real.xlr, 'number');
       break;
+    case 'line':
+      html += propBusSelect(real.id, 'from', 'From Bus', real.from);
+      html += propBusSelect(real.id, 'to', 'To Bus', real.to);
+      html += propInput(real.id, 'r_pu', 'R (p.u.)', real.r_pu, 'number');
+      html += propInput(real.id, 'x_pu', 'X (p.u.)', real.x_pu, 'number');
+      html += propInput(real.id, 'b_pu', 'B (p.u.)', real.b_pu, 'number');
+      html += propInput(real.id, 'length_km', 'Length (km)', real.length_km, 'number');
+      html += propInput(real.id, 'ratedI', 'Rated I (A)', real.ratedI, 'number');
+      break;
+    case 'cable':
+      html += propBusSelect(real.id, 'from', 'From Bus', real.from);
+      html += propBusSelect(real.id, 'to', 'To Bus', real.to);
+      html += propInput(real.id, 'r_ohm_km', 'R (\u03A9/km)', real.r_ohm_km, 'number');
+      html += propInput(real.id, 'x_ohm_km', 'X (\u03A9/km)', real.x_ohm_km, 'number');
+      html += propInput(real.id, 'length_km', 'Length (km)', real.length_km, 'number');
+      html += propInput(real.id, 'size_mm2', 'Size (mm\u00B2)', real.size_mm2, 'number');
+      html += propSelect(real.id, 'material', 'Material', real.material, ['cu', 'al']);
+      break;
+    case 'switch':
+      html += propSelect(real.id, 'state', 'State', real.state, ['open', 'closed']);
+      html += propBusSelect(real.id, 'from', 'From Bus', real.from);
+      html += propBusSelect(real.id, 'to', 'To Bus', real.to);
+      html += propInput(real.id, 'ratedI', 'Rated I (A)', real.ratedI, 'number');
+      html += propInput(real.id, 'ratedV_kv', 'Rated V (kV)', real.ratedV_kv, 'number');
+      break;
+    case 'breaker':
+      html += propSelect(real.id, 'state', 'State', real.state, ['open', 'closed']);
+      html += propBusSelect(real.id, 'from', 'From Bus', real.from);
+      html += propBusSelect(real.id, 'to', 'To Bus', real.to);
+      html += propInput(real.id, 'ratedI', 'Rated I (A)', real.ratedI, 'number');
+      html += propInput(real.id, 'ratedV_kv', 'Rated V (kV)', real.ratedV_kv, 'number');
+      html += propInput(real.id, 'breakingCapacity_kA', 'Breaking (kA)', real.breakingCapacity_kA, 'number');
+      break;
+    case 'ct':
+      html += propBusSelect(real.id, 'busId', 'Connected Bus', real.busId);
+      html += propInput(real.id, 'ratio_primary', 'Primary (A)', real.ratio_primary, 'number');
+      html += propInput(real.id, 'ratio_secondary', 'Secondary (A)', real.ratio_secondary, 'number');
+      html += propSelect(real.id, 'accuracy_class', 'Accuracy Class', real.accuracy_class, ['5P10', '5P20', '10P10', '10P20', '0.5', '0.2']);
+      html += propInput(real.id, 'burden_va', 'Burden (VA)', real.burden_va, 'number');
+      break;
+    case 'relay':
+      html += propBusSelect(real.id, 'busId', 'Connected Bus', real.busId);
+      html += propSelect(real.id, 'relayType', 'Relay Type', real.relayType, ['overcurrent', 'differential', 'distance']);
+      html += propSelect(real.id, 'curveType', 'Curve Type', real.curveType || 'si', ['si', 'vi', 'ei', 'lti']);
+      html += propInput(real.id, 'pickup', 'Pickup (A)', real.pickup, 'number');
+      html += propInput(real.id, 'tms', 'TMS', real.tms, 'number');
+      break;
   }
 
   container.innerHTML = html;
@@ -544,7 +1138,7 @@ function propBusSelect(id, key, label, value) {
 function updateProp(id, key, value) {
   const obj = findObjById(id);
   if (!obj) return;
-  if (key === 'name' || key === 'type' || key === 'material') {
+  if (key === 'name' || key === 'type' || key === 'material' || key === 'state' || key === 'accuracy_class' || key === 'relayType' || key === 'curveType') {
     obj[key] = value;
   } else if (key === 'busId' || key === 'from' || key === 'to') {
     obj[key] = value ? parseInt(value) : null;
@@ -553,6 +1147,7 @@ function updateProp(id, key, value) {
   }
   drawSLD();
   syncBusSelectors();
+  resizeMiniSLDs();
 }
 
 function clearProperties() {
@@ -1335,3 +1930,4 @@ window.openSimulator = openSimulator;
 window.updateProp = updateProp;
 window.updateProtDevice = updateProtDevice;
 window.removeProtDevice = removeProtDevice;
+window.rotateSelected = rotateSelected;
