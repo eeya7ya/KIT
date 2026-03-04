@@ -148,7 +148,7 @@ function loginDemo() {
             ctx.beginPath();
             ctx.moveTo(particles[i].x, particles[i].y);
             ctx.lineTo(particles[j].x, particles[j].y);
-            ctx.strokeStyle = `rgba(79,140,255,${0.06 * (1 - dist / 130)})`;
+            ctx.strokeStyle = `rgba(255,215,0,${0.06 * (1 - dist / 130)})`;
             ctx.lineWidth = 0.6;
             ctx.stroke();
           }
@@ -159,7 +159,7 @@ function loginDemo() {
       for (const p of particles) {
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(100,160,255,${p.a})`;
+        ctx.fillStyle = `rgba(255,215,0,${p.a})`;
         ctx.fill();
 
         p.x += p.vx;
@@ -181,14 +181,16 @@ function loginDemo() {
   });
 })();
 
-/* ── Tool card hover ripple ──────────────────────────── */
-document.querySelectorAll('.tool-card').forEach(card => {
-  card.addEventListener('click', () => {
-    if (card.classList.contains('coming-soon')) {
-      toast('This tool is coming soon. Stay tuned!');
-    }
-  });
-});
+/* ── Simulator navigation ───────────────────────────── */
+function openSimulator() {
+  showScreen('simulator-screen');
+  toast('Power System Simulator loaded.');
+  if (window.initSimulator) window.initSimulator();
+}
+
+function closeSimulator() {
+  showScreen('main-screen');
+}
 
 /* ── Keyboard shortcut ───────────────────────────────── */
 document.addEventListener('keydown', e => {
