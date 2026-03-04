@@ -30,8 +30,8 @@
   const CFG = {
     STAR_COUNT:      2200,
     DUST_COUNT:      360,
-    NEBULA_COUNT:    9,
-    ARMS:            4,
+    NEBULA_COUNT:    14,
+    ARMS:            5,
     ARM_TWIST:       3.4,     // tighter spiral
     ARM_WIDTH:       0.30,
     CORE_RADIUS:     0.14,
@@ -40,13 +40,21 @@
     PARALLAX:        0.020,
     TILT:            0.72,    // y-axis squish → disk perspective
     BG_COLOR:        '#02030a',
-    CORE_COLORS:     ['#ffe8b0','#ffd580','#ffb347','#ff9a3c','#ffcc66'],
-    ARM_COLORS:      ['#b0c8ff','#8aaeff','#ffffff','#d0e8ff','#c8ddff'],
+    CORE_COLORS:     ['#ffe8b0','#ffd580','#ffb347','#ff9a3c','#ffcc66','#fff0cc'],
+    ARM_COLORS:      [
+      '#b0c8ff','#8aaeff','#ffffff','#d0e8ff',  // cool blues/whites
+      '#ff80ef','#dd66ff','#cc88ff',             // pinks & purples
+      '#00ffe0','#44ffcc','#80ffee',             // cyans/teals
+      '#ffe060','#ffcc44',                       // warm yellows
+      '#ff9966','#ffaa88',                       // warm oranges
+    ],
     NEBULA_PALETTES: [
-      ['#1a0033','#3d0066','#7b00cc'],
-      ['#002244','#004488','#0088ff'],
-      ['#001a00','#003300','#006600'],
-      ['#330011','#660022','#cc0044'],
+      ['#1a0033','#8800cc','#ee44ff'],   // vivid purple
+      ['#002244','#0055cc','#22aaff'],   // vivid blue
+      ['#001a00','#007700','#22ee66'],   // vivid green
+      ['#330011','#cc0044','#ff4499'],   // vivid pink/red
+      ['#331100','#cc5500','#ff9922'],   // vivid orange
+      ['#003333','#008888','#00ffee'],   // vivid cyan
     ],
     FPS_CAP: 40,
   };
@@ -115,8 +123,8 @@
       const twist  = (r / diskR) * CFG.ARM_TWIST;
       const a      = armAng + twist + randN(0.15);
       const pal    = CFG.NEBULA_PALETTES[i % CFG.NEBULA_PALETTES.length].map(hexRgb);
-      const size   = rand(diskR * 0.07, diskR * 0.22);
-      const alpha  = rand(0.03, 0.075);
+      const size   = rand(diskR * 0.09, diskR * 0.28);
+      const alpha  = rand(0.06, 0.16);
 
       nebulae.push({
         ox: Math.cos(a) * r,
@@ -204,11 +212,16 @@
       const twist  = (r / diskR) * CFG.ARM_TWIST;
       const a      = armAng + twist + randN(CFG.ARM_WIDTH * 0.62);
 
+      const dustPalette = [
+        [120, 90, 200], [0, 180, 200], [200, 60, 140],
+        [60, 200, 120], [200, 130, 40], [80, 120, 220],
+      ];
+      const dc = dustPalette[Math.floor(rand(0, dustPalette.length))];
       dusts.push({
         ox:    Math.cos(a) * r,
         oy:    Math.sin(a) * r * CFG.TILT,
-        size:  rand(3, 16),
-        color: `rgba(120,90,200,${rand(0.010, 0.048).toFixed(3)})`,
+        size:  rand(3, 18),
+        color: `rgba(${dc[0]},${dc[1]},${dc[2]},${rand(0.012, 0.055).toFixed(3)})`,
       });
     }
   }
