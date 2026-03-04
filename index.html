@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KIT — Web Engineering &amp; Analysis Platform</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════════
+       LOGIN SCREEN
+  ════════════════════════════════════════════════════ -->
+  <div id="login-screen" class="screen active">
+
+    <!-- LEFT: Galaxy Canvas -->
+    <div class="galaxy-panel">
+      <canvas id="galaxy-canvas"></canvas>
+      <div class="galaxy-overlay">
+        <div class="brand-tagline">
+          <h1 class="brand-name">KIT</h1>
+          <p class="brand-sub">Web Engineering &amp; Analysis Platform</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Login Form -->
+    <div class="login-panel">
+      <div class="login-card">
+        <div class="login-logo">
+          <div class="logo-mark"></div>
+        </div>
+        <h2 class="login-title">Welcome to KIT</h2>
+        <p class="login-desc">Sign in to access your engineering toolbox</p>
+
+        <div class="divider">
+          <span>Continue with</span>
+        </div>
+
+        <!-- Google Sign-In Button -->
+        <div id="g_id_onload"
+             data-client_id="YOUR_GOOGLE_CLIENT_ID"
+             data-callback="handleGoogleLogin"
+             data-auto_prompt="false">
+        </div>
+        <div id="google-btn-container">
+          <div class="g_id_signin"
+               data-type="standard"
+               data-size="large"
+               data-theme="filled_black"
+               data-text="sign_in_with"
+               data-shape="pill"
+               data-logo_alignment="left">
+          </div>
+        </div>
+
+        <!-- Demo bypass button -->
+        <button class="demo-btn" onclick="loginDemo()">
+          <span class="demo-icon">⚡</span>
+          Continue as Demo User
+        </button>
+
+        <p class="login-terms">
+          By signing in you agree to our
+          <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>
+        </p>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════
+       MAIN DASHBOARD SCREEN
+  ════════════════════════════════════════════════════ -->
+  <div id="main-screen" class="screen">
+
+    <!-- Top Navigation -->
+    <nav class="top-nav">
+      <div class="nav-brand">
+        <div class="logo-mark small"></div>
+        <span>KIT</span>
+      </div>
+      <div class="nav-center">
+        <span class="nav-title">Engineering &amp; Analysis Platform</span>
+      </div>
+      <div class="nav-user">
+        <img id="user-avatar" src="" alt="User" class="avatar" />
+        <span id="user-name" class="user-name"></span>
+        <button class="logout-btn" onclick="logout()">Sign Out</button>
+      </div>
+    </nav>
+
+    <!-- Dashboard Content -->
+    <main class="dashboard">
+      <div class="dashboard-header">
+        <h2>Choose Your Tool</h2>
+        <p>Select a module to get started. More tools coming soon.</p>
+      </div>
+
+      <div class="tools-grid">
+
+        <!-- Tool Card 1 -->
+        <div class="tool-card coming-soon" data-tool="performance">
+          <div class="tool-icon">
+            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M6 36L18 24L26 32L38 18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="38" cy="18" r="3" fill="currentColor"/>
+              <path d="M6 42H42" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <h3>Performance Analyzer</h3>
+          <p>Profile and benchmark web application performance metrics in real time.</p>
+          <div class="tool-badge">Coming Soon</div>
+        </div>
+
+        <!-- Tool Card 2 -->
+        <div class="tool-card coming-soon" data-tool="seo">
+          <div class="tool-icon">
+            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="22" cy="22" r="13" stroke="currentColor" stroke-width="2.5"/>
+              <path d="M31 31L42 42" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+              <path d="M16 22H28M22 16V28" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <h3>SEO Inspector</h3>
+          <p>Audit metadata, structured data, and search engine optimization factors.</p>
+          <div class="tool-badge">Coming Soon</div>
+        </div>
+
+        <!-- Tool Card 3 -->
+        <div class="tool-card coming-soon" data-tool="api">
+          <div class="tool-icon">
+            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="6" y="14" width="16" height="20" rx="3" stroke="currentColor" stroke-width="2.5"/>
+              <rect x="26" y="14" width="16" height="20" rx="3" stroke="currentColor" stroke-width="2.5"/>
+              <path d="M22 24H26" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+              <path d="M10 22H18M10 26H15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <path d="M30 22H38M30 26H35" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <h3>API Tester</h3>
+          <p>Send requests, inspect responses, and document REST &amp; GraphQL endpoints.</p>
+          <div class="tool-badge">Coming Soon</div>
+        </div>
+
+        <!-- Tool Card 4 -->
+        <div class="tool-card coming-soon" data-tool="accessibility">
+          <div class="tool-icon">
+            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="24" cy="10" r="4" stroke="currentColor" stroke-width="2.5"/>
+              <path d="M10 20H38" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+              <path d="M24 20V38" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+              <path d="M14 38L24 28L34 38" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <h3>Accessibility Checker</h3>
+          <p>Validate WCAG compliance, contrast ratios, and keyboard navigation.</p>
+          <div class="tool-badge">Coming Soon</div>
+        </div>
+
+        <!-- Tool Card 5 -->
+        <div class="tool-card coming-soon" data-tool="security">
+          <div class="tool-icon">
+            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M24 6L8 12V24C8 33.941 15.163 41.824 24 44C32.837 41.824 40 33.941 40 24V12L24 6Z" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round"/>
+              <path d="M17 24L22 29L32 19" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <h3>Security Scanner</h3>
+          <p>Detect headers misconfiguration, exposed secrets, and common vulnerabilities.</p>
+          <div class="tool-badge">Coming Soon</div>
+        </div>
+
+        <!-- Tool Card 6 -->
+        <div class="tool-card coming-soon" data-tool="bundle">
+          <div class="tool-icon">
+            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="8" y="8" width="14" height="14" rx="2" stroke="currentColor" stroke-width="2.5"/>
+              <rect x="26" y="8" width="14" height="14" rx="2" stroke="currentColor" stroke-width="2.5"/>
+              <rect x="8" y="26" width="14" height="14" rx="2" stroke="currentColor" stroke-width="2.5"/>
+              <rect x="26" y="26" width="14" height="14" rx="2" stroke="currentColor" stroke-width="2.5"/>
+            </svg>
+          </div>
+          <h3>Bundle Analyzer</h3>
+          <p>Visualize JavaScript bundle composition and identify dead code.</p>
+          <div class="tool-badge">Coming Soon</div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+
+  <!-- Dashboard background particle canvas -->
+  <canvas id="dash-canvas" style="position:fixed;inset:0;z-index:0;pointer-events:none;opacity:0.4;display:none;"></canvas>
+
+  <script src="galaxy.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
