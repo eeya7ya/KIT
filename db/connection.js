@@ -1,14 +1,7 @@
-require('dotenv').config();
-const { Pool } = require('pg');
+const { neon } = require('@neondatabase/serverless');
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false }
-});
-
-async function query(text, params) {
-  const res = await pool.query(text, params);
-  return res.rows;
+function getDb() {
+  return neon(process.env.DATABASE_URL);
 }
 
-module.exports = { pool, query };
+module.exports = { getDb };
