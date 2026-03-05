@@ -1,0 +1,14 @@
+{
+  "name": "kit-power-system-simulator",
+  "version": "1.0.0",
+  "description": "Power System Steady-State Analysis Tool",
+  "scripts": {
+    "db:schema": "node db/schema.js",
+    "db:seed": "node db/seed.js",
+    "db:setup": "node db/schema.js && node db/seed.js"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^0.9.0",
+    "dotenv": "^16.4.5"
+  }
+}
