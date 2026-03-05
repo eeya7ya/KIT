@@ -68,6 +68,32 @@
     </div>
 
     <div class="toolbar-right">
+      <!-- Undo / Redo -->
+      <button class="tb-btn" id="btn-undo" title="Undo (Ctrl+Z)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 7v6h6"/><path d="M21 17a9 9 0 00-9-9 9 9 0 00-6 2.3L3 13"/>
+        </svg>
+      </button>
+      <button class="tb-btn" id="btn-redo" title="Redo (Ctrl+Y)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 7v6h-6"/><path d="M3 17a9 9 0 019-9 9 9 0 016 2.3L21 13"/>
+        </svg>
+      </button>
+      <!-- Rotate -->
+      <button class="tb-btn" id="btn-rotate" title="Rotate 90° (Ctrl+R)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21.5 2v6h-6"/><path d="M21.34 15.57a10 10 0 11-.57-8.38"/>
+        </svg>
+      </button>
+      <div class="toolbar-sep"></div>
+      <!-- Power Flow -->
+      <button class="tb-btn tb-btn-pf" id="btn-pf" title="Run Power Flow Analysis">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="5 3 19 12 5 21 5 3"/>
+        </svg>
+        <span class="tb-btn-label">Power Flow</span>
+      </button>
+      <div class="toolbar-sep"></div>
       <button class="tb-btn" id="btn-delete" title="Delete Selected (Del)">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
@@ -217,8 +243,25 @@
       <div class="palette-header">Properties</div>
       <div class="props-empty" id="props-empty">
         <p>Select a component to view its properties</p>
+        <div class="shortcut-hint">
+          <strong>Shortcuts:</strong><br>
+          Ctrl+C / V — Copy/Paste<br>
+          Ctrl+D — Duplicate<br>
+          Ctrl+R — Rotate 90°<br>
+          Ctrl+Z / Y — Undo/Redo<br>
+          Ctrl+A — Select All<br>
+          Ctrl+P — Export PNG<br>
+          Del — Delete<br>
+          V — Select mode<br>
+          C — Connect mode<br>
+          G/S — Grid/Snap<br>
+          F — Fit View
+        </div>
       </div>
       <div class="props-content" id="props-content" style="display:none;">
+
+        <!-- ── General ──────────────────────────────── -->
+        <div class="props-section-title">General</div>
         <div class="prop-group">
           <label class="prop-label">Name / ID</label>
           <input type="text" class="prop-input" id="prop-name" />
@@ -244,21 +287,61 @@
             <option value="right">Right</option>
           </select>
         </div>
-        <div class="prop-group" id="prop-rating-group">
+        <div class="prop-group" id="prop-rating-group" style="display:none;">
           <label class="prop-label">Rating</label>
           <input type="text" class="prop-input" id="prop-rating" placeholder="e.g. 100 MVA" />
         </div>
-        <div class="prop-group" id="prop-voltage-group">
+        <div class="prop-group" id="prop-voltage-group" style="display:none;">
           <label class="prop-label">Voltage (kV)</label>
           <input type="text" class="prop-input" id="prop-voltage" placeholder="e.g. 132" />
         </div>
+
+        <!-- ── Analysis Parameters ─────────────────── -->
+        <div class="props-section-title props-section-params" id="params-section-title" style="display:none;">
+          Analysis Parameters
+        </div>
+        <div id="props-params"></div>
+
+        <!-- ── Catalogue Browser ───────────────────── -->
+        <div id="catalogue-section" style="display:none;">
+          <div class="props-section-title">Manufacturer Catalogue</div>
+          <div class="catalogue-filters">
+            <select class="prop-input" id="cat-type-filter">
+              <option value="">-- Select Category --</option>
+              <option value="circuit_breakers">Circuit Breakers</option>
+              <option value="disconnectors">Disconnectors</option>
+              <option value="fuses">Fuses</option>
+              <option value="protection_relays">Protection Relays</option>
+              <option value="current_transformers">Current Transformers</option>
+              <option value="voltage_transformers">Voltage Transformers</option>
+            </select>
+            <select class="prop-input" id="cat-voltage-filter" style="display:none;">
+              <option value="">All Voltages</option>
+              <option value="LVCB">LVCB (≤1 kV)</option>
+              <option value="MVCB">MVCB (1–36 kV)</option>
+              <option value="HVCB">HVCB (&gt;36 kV)</option>
+            </select>
+            <input type="text" class="prop-input" id="cat-search" placeholder="Search manufacturer or model…" />
+          </div>
+          <div class="catalogue-table-wrap">
+            <table class="catalogue-table" id="catalogue-table">
+              <thead id="catalogue-thead"></thead>
+              <tbody id="catalogue-tbody"></tbody>
+            </table>
+          </div>
+          <button class="cat-apply-btn" id="cat-apply-btn" style="display:none;">Apply to Component</button>
+        </div>
+
+        <!-- ── Relay CT Requirements ───────────────── -->
         <div class="prop-group" id="prop-relay-ct-group" style="display:none;">
           <label class="prop-label">Connected CTs</label>
           <div class="prop-ct-list" id="prop-ct-list"></div>
           <p class="prop-hint" id="prop-ct-hint"></p>
         </div>
+
+        <!-- ── Connections ─────────────────────────── -->
+        <div class="props-section-title">Connections</div>
         <div class="prop-group">
-          <label class="prop-label">Connections</label>
           <div class="prop-connections" id="prop-connections"></div>
         </div>
       </div>
@@ -268,7 +351,60 @@
   <!-- Tooltip for ports -->
   <div class="port-tooltip" id="port-tooltip" style="display:none;"></div>
 
+  <!-- ═══════════════════════════════════════════════════
+       POWER FLOW RESULTS MODAL
+  ════════════════════════════════════════════════════ -->
+  <div class="pf-modal" id="pf-modal" style="display:none;">
+    <div class="pf-modal-inner">
+      <div class="pf-modal-header">
+        <span>Power Flow Analysis Results</span>
+        <button class="pf-close-btn" id="pf-close-btn" title="Close">✕</button>
+      </div>
+      <div class="pf-status-bar" id="pf-status"></div>
+      <div class="pf-modal-body">
+        <div class="pf-section">
+          <div class="pf-section-title">Bus Voltages &amp; Power</div>
+          <div class="pf-table-wrap">
+            <table class="pf-table">
+              <thead>
+                <tr>
+                  <th>Bus Name</th><th>Type</th>
+                  <th>V (pu)</th><th>V (kV)</th><th>θ (°)</th>
+                  <th>P (MW)</th><th>Q (MVAR)</th>
+                </tr>
+              </thead>
+              <tbody id="pf-bus-body"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="pf-section">
+          <div class="pf-section-title">Branch Flows</div>
+          <div class="pf-table-wrap">
+            <table class="pf-table">
+              <thead>
+                <tr>
+                  <th>Branch</th><th>From</th><th>To</th>
+                  <th>P (MW)</th><th>Q (MVAR)</th><th>S (MVA)</th>
+                  <th>I (A)</th><th>Loading %</th>
+                </tr>
+              </thead>
+              <tbody id="pf-branch-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="pf-modal-footer">
+        <span class="pf-base-note">System base: 100 MVA</span>
+        <button class="pf-run-btn" id="pf-rerun-btn">▶ Re-run</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
   <script src="sld-components.js"></script>
+  <script src="sld-params.js"></script>
+  <script src="catalogue.js"></script>
+  <script src="pf-engine.js"></script>
   <script src="sld-engine.js"></script>
 </body>
 </html>
