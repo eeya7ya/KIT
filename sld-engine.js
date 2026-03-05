@@ -44,7 +44,14 @@ const state = {
   panStart: null,
 
   // Connection-in-progress
-  connecting: null,     // { fromCompId, fromPortId, x0, y0 }
+  connecting: null,     // { fromCompId, fromPortId, x0, y0, dir0 }
+
+  // Undo/redo stacks
+  undoStack: [],        // [{components, wires}, ...]
+  redoStack: [],
+
+  // Clipboard for copy/paste
+  clipboard: null,      // cloned component object
 };
 
 /* ═══════════════════════════════════════════════════════
@@ -132,6 +139,16 @@ function bindToolbar() {
   document.getElementById('btn-zoom-fit').addEventListener('click', fitView);
   document.getElementById('btn-delete').addEventListener('click', deleteSelected);
   document.getElementById('btn-clear').addEventListener('click', clearAll);
+  document.getElementById('btn-undo').addEventListener('click', undo);
+  document.getElementById('btn-redo').addEventListener('click', redo);
+  document.getElementById('btn-rotate').addEventListener('click', rotateSelected);
+  document.getElementById('btn-pf').addEventListener('click', runPowerFlow);
+
+  // PF modal close buttons
+  document.getElementById('pf-close-btn').addEventListener('click', () => {
+    document.getElementById('pf-modal').style.display = 'none';
+  });
+  document.getElementById('pf-rerun-btn').addEventListener('click', runPowerFlow);
 }
 
 function setMode(mode) {
@@ -234,10 +251,14 @@ function bindCanvasEvents() {
       const pos = screenToCanvas(e.clientX, e.clientY);
       const comp = getComp(state.dragging.compId);
       if (comp) {
-        comp.x = snap(pos.x - state.dragging.offsetX);
-        comp.y = snap(pos.y - state.dragging.offsetY);
-        renderComponent(comp);
-        renderAllWires();
+        const newX = snap(pos.x - state.dragging.offsetX);
+        const newY = snap(pos.y - state.dragging.offsetY);
+        if (newX !== comp.x || newY !== comp.y) {
+          comp.x = newX;
+          comp.y = newY;
+          renderComponent(comp);
+          renderAllWires();
+        }
       }
       return;
     }
@@ -289,8 +310,40 @@ let spaceHeld = false;
 
 function bindKeyboard() {
   document.addEventListener('keydown', e => {
-    // Don't intercept when typing in inputs
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+    const inInput = e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA';
+
+    // Ctrl shortcuts — allow even in inputs for some
+    if (e.ctrlKey || e.metaKey) {
+      switch (e.key.toLowerCase()) {
+        case 'z':
+          if (!inInput) { e.preventDefault(); e.shiftKey ? redo() : undo(); }
+          return;
+        case 'y':
+          if (!inInput) { e.preventDefault(); redo(); }
+          return;
+        case 'c':
+          if (!inInput) { e.preventDefault(); copySelected(); }
+          return;
+        case 'v':
+          if (!inInput) { e.preventDefault(); pasteClipboard(); }
+          return;
+        case 'd':
+          if (!inInput) { e.preventDefault(); duplicateSelected(); }
+          return;
+        case 'a':
+          if (!inInput) { e.preventDefault(); selectAll(); }
+          return;
+        case 'r':
+          if (!inInput) { e.preventDefault(); rotateSelected(); }
+          return;
+        case 'p':
+          if (!inInput) { e.preventDefault(); exportToPNG(); }
+          return;
+      }
+    }
+
+    // Don't intercept non-ctrl shortcuts when typing in inputs
+    if (inInput) return;
 
     switch (e.key) {
       case 'Delete':
@@ -313,10 +366,7 @@ function bindKeyboard() {
         if (!spaceHeld) {
           spaceHeld = true;
           $wrap.classList.add('panning');
-          // Space-pan: listen for mouse down
-          const onMD = ev => {
-            if (ev.button === 0) startPan(ev);
-          };
+          const onMD = ev => { if (ev.button === 0) startPan(ev); };
           $wrap.addEventListener('mousedown', onMD);
           const cleanup = () => {
             spaceHeld = false;
@@ -324,10 +374,7 @@ function bindKeyboard() {
             $wrap.removeEventListener('mousedown', onMD);
           };
           document.addEventListener('keyup', function onKU(ev) {
-            if (ev.key === ' ') {
-              cleanup();
-              document.removeEventListener('keyup', onKU);
-            }
+            if (ev.key === ' ') { cleanup(); document.removeEventListener('keyup', onKU); }
           });
         }
         e.preventDefault();
@@ -338,6 +385,163 @@ function bindKeyboard() {
       case 'ArrowRight': state.panX -= 60; applyTransform(); e.preventDefault(); break;
     }
   });
+}
+
+/* ═══════════════════════════════════════════════════════
+   UNDO / REDO
+   ═══════════════════════════════════════════════════════ */
+
+function pushUndo() {
+  state.undoStack.push({
+    components: JSON.parse(JSON.stringify(state.components)),
+    wires: JSON.parse(JSON.stringify(state.wires)),
+    nextId: state.nextId,
+  });
+  if (state.undoStack.length > 50) state.undoStack.shift();
+  state.redoStack = [];
+}
+
+function undo() {
+  if (state.undoStack.length === 0) return;
+  state.redoStack.push({
+    components: JSON.parse(JSON.stringify(state.components)),
+    wires: JSON.parse(JSON.stringify(state.wires)),
+    nextId: state.nextId,
+  });
+  const snap = state.undoStack.pop();
+  restoreSnapshot(snap);
+}
+
+function redo() {
+  if (state.redoStack.length === 0) return;
+  state.undoStack.push({
+    components: JSON.parse(JSON.stringify(state.components)),
+    wires: JSON.parse(JSON.stringify(state.wires)),
+    nextId: state.nextId,
+  });
+  const snap = state.redoStack.pop();
+  restoreSnapshot(snap);
+}
+
+function restoreSnapshot(snap) {
+  state.components = snap.components;
+  state.wires = snap.wires;
+  state.nextId = snap.nextId;
+  state.selected = null;
+  state.selectedWire = null;
+  // Re-render all
+  $compLayer.innerHTML = '';
+  state.components.forEach(c => createComponentDOM(c));
+  renderAllWires();
+  updatePropertiesPanel();
+}
+
+/* ═══════════════════════════════════════════════════════
+   COPY / PASTE / DUPLICATE
+   ═══════════════════════════════════════════════════════ */
+
+function copySelected() {
+  const comp = getComp(state.selected);
+  if (!comp) return;
+  state.clipboard = JSON.parse(JSON.stringify(comp));
+  showToast('Copied: ' + comp.name);
+}
+
+function pasteClipboard() {
+  if (!state.clipboard) return;
+  pushUndo();
+  const src = state.clipboard;
+  const def = SLD_COMP[src.type];
+  if (!def) return;
+  const newComp = addComponent(src.type, src.x + 40, src.y + 40);
+  newComp.props = JSON.parse(JSON.stringify(src.props));
+  newComp.name = src.name + ' (copy)';
+  newComp.labelPos = src.labelPos;
+  newComp.labelAlign = src.labelAlign;
+  newComp.rotation = src.rotation || 0;
+  renderComponent(newComp);
+  selectComponent(newComp.id);
+  showToast('Pasted: ' + newComp.name);
+}
+
+function duplicateSelected() {
+  copySelected();
+  pasteClipboard();
+}
+
+/* ═══════════════════════════════════════════════════════
+   SELECT ALL
+   ═══════════════════════════════════════════════════════ */
+
+function selectAll() {
+  // Highlight all components visually (multi-select indicator)
+  $compLayer.querySelectorAll('.sld-comp').forEach(el => el.classList.add('selected'));
+  showToast(`${state.components.length} components selected`);
+}
+
+/* ═══════════════════════════════════════════════════════
+   ROTATE
+   ═══════════════════════════════════════════════════════ */
+
+function rotateSelected() {
+  const comp = getComp(state.selected);
+  if (!comp) return;
+  pushUndo();
+  comp.rotation = (((comp.rotation || 0) + 90) % 360);
+  applyRotation(comp);
+  renderAllWires();
+  showToast('Rotated to ' + comp.rotation + '°');
+}
+
+function applyRotation(comp) {
+  const el = $compLayer.querySelector(`[data-id="${comp.id}"]`);
+  if (!el) return;
+  el.style.transformOrigin = 'center center';
+  el.style.transform = comp.rotation ? `rotate(${comp.rotation}deg)` : '';
+}
+
+/* ═══════════════════════════════════════════════════════
+   EXPORT TO PNG
+   ═══════════════════════════════════════════════════════ */
+
+function exportToPNG() {
+  // Use native SVG + canvas export approach
+  const svgEl = $wiresSvg;
+  const canvasEl = document.getElementById('sld-canvas');
+  const rect = canvasEl.getBoundingClientRect();
+
+  // Notify user
+  showToast('Preparing PNG export...');
+
+  // Use html2canvas if available, else show instructions
+  if (typeof html2canvas !== 'undefined') {
+    html2canvas($wrap, { scale: 2, backgroundColor: '#0a0e17' }).then(canvas => {
+      const link = document.createElement('a');
+      link.download = 'KIT-SLD-' + Date.now() + '.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      showToast('PNG exported!');
+    });
+  } else {
+    showToast('Tip: Use browser Print → Save as PDF for export', 4000);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   TOAST NOTIFICATION
+   ═══════════════════════════════════════════════════════ */
+
+function showToast(msg, duration = 2000) {
+  let toast = document.getElementById('sld-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'sld-toast';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.classList.add('visible');
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => toast.classList.remove('visible'), duration);
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -383,6 +587,7 @@ function bindPaletteEvents() {
 function addComponent(type, x, y) {
   const def = SLD_COMP[type];
   if (!def) return;
+  pushUndo();
   const id = state.nextId++;
   const comp = {
     id,
@@ -467,6 +672,8 @@ function createComponentDOM(comp) {
     if (e.button !== 0) return;
     e.stopPropagation();
     selectComponent(comp.id);
+    // Record undo snapshot before drag
+    pushUndo();
     // Start drag
     const pos = screenToCanvas(e.clientX, e.clientY);
     state.dragging = {
@@ -533,6 +740,7 @@ function selectWire(idx) {
 
 function deleteSelected() {
   if (state.selected !== null) {
+    pushUndo();
     const id = state.selected;
     // Remove wires connected to this component
     state.wires = state.wires.filter(w => w.from.compId !== id && w.to.compId !== id);
@@ -544,6 +752,7 @@ function deleteSelected() {
     renderAllWires();
     updatePropertiesPanel();
   } else if (state.selectedWire !== null) {
+    pushUndo();
     state.wires.splice(state.selectedWire, 1);
     state.selectedWire = null;
     renderAllWires();
@@ -580,7 +789,8 @@ function getPortWorldPos(compId, portId) {
 function startConnection(compId, portId, e) {
   const pos = getPortWorldPos(compId, portId);
   if (!pos) return;
-  state.connecting = { fromCompId: compId, fromPortId: portId, x0: pos.x, y0: pos.y };
+  const dir0 = getPortDirection(compId, portId);
+  state.connecting = { fromCompId: compId, fromPortId: portId, x0: pos.x, y0: pos.y, dir0 };
   // Create preview line
   let preview = $wiresSvg.querySelector('.wire-preview');
   if (!preview) {
@@ -599,7 +809,10 @@ function updateConnectionPreview(clientX, clientY) {
   const preview = $wiresSvg.querySelector('.wire-preview');
   if (!preview) return;
   const pos = screenToCanvas(clientX, clientY);
-  const pts = routeWire(state.connecting.x0, state.connecting.y0, pos.x, pos.y);
+  // Use opposite direction for preview target stub
+  const dir0 = state.connecting.dir0 || 'down';
+  const oppDir = { up:'down', down:'up', left:'right', right:'left' }[dir0];
+  const pts = routeWire(state.connecting.x0, state.connecting.y0, pos.x, pos.y, dir0, oppDir);
   preview.setAttribute('points', pts.map(p => `${p.x},${p.y}`).join(' '));
 }
 
@@ -622,6 +835,7 @@ function finishConnection(toCompId, toPortId) {
   );
 
   if (!exists) {
+    pushUndo();
     state.wires.push({
       from: { compId: fromCompId, portId: fromPortId },
       to:   { compId: toCompId,   portId: toPortId },
@@ -653,24 +867,98 @@ function highlightCompatiblePorts(excludeCompId, excludePortId) {
   });
 }
 
-/* ── Orthogonal wire routing ─────────────────────────── */
+/* ── Port direction detection ────────────────────────── */
 
-function routeWire(x1, y1, x2, y2) {
-  // Simple orthogonal routing: go vertical to midpoint, then horizontal, then vertical
-  const midY = (y1 + y2) / 2;
-  if (Math.abs(x1 - x2) < 2) {
-    // Vertical alignment — straight line
+function getPortDirection(compId, portId) {
+  const comp = getComp(compId);
+  if (!comp) return 'down';
+  const def = SLD_COMP[comp.type];
+  const port = def.ports.find(p => p.id === portId);
+  if (!port) return 'down';
+  const eps = 3;
+  if (port.y <= eps)         return 'up';
+  if (port.y >= def.h - eps) return 'down';
+  if (port.x <= eps)         return 'left';
+  if (port.x >= def.w - eps) return 'right';
+  // Default: port closest to which edge
+  const dTop = port.y;
+  const dBot = def.h - port.y;
+  const dLeft = port.x;
+  const dRight = def.w - port.x;
+  const minD = Math.min(dTop, dBot, dLeft, dRight);
+  if (minD === dTop)   return 'up';
+  if (minD === dBot)   return 'down';
+  if (minD === dLeft)  return 'left';
+  return 'right';
+}
+
+/* ── ETAP-style orthogonal wire routing ──────────────── */
+
+function routeWire(x1, y1, x2, y2, dir1, dir2) {
+  if (!dir1) dir1 = 'down';
+  if (!dir2) dir2 = 'up';
+
+  const v1 = (dir1 === 'up' || dir1 === 'down');
+  const v2 = (dir2 === 'up' || dir2 === 'down');
+  const STUB = 24; // px minimum exit stub
+
+  // ── STRAIGHT LINE: ports are collinear with matching directions ──
+  // Vertically aligned (same X) with both vertical-exit ports → straight vertical
+  if (Math.abs(x1 - x2) < 4 && v1 && v2) {
     return [{ x: x1, y: y1 }, { x: x2, y: y2 }];
   }
-  if (Math.abs(y1 - y2) < 2) {
-    // Horizontal alignment — straight line
+  // Horizontally aligned (same Y) with both horizontal-exit ports → straight horizontal
+  if (Math.abs(y1 - y2) < 4 && !v1 && !v2) {
     return [{ x: x1, y: y1 }, { x: x2, y: y2 }];
   }
+
+  // ── COMPUTE STUB EXIT POINTS ──
+  const dx1 = dir1 === 'left' ? -STUB : dir1 === 'right' ? STUB : 0;
+  const dy1 = dir1 === 'up'   ? -STUB : dir1 === 'down'  ? STUB : 0;
+  const dx2 = dir2 === 'left' ? -STUB : dir2 === 'right' ? STUB : 0;
+  const dy2 = dir2 === 'up'   ? -STUB : dir2 === 'down'  ? STUB : 0;
+  const sx1 = x1 + dx1, sy1 = y1 + dy1;
+  const sx2 = x2 + dx2, sy2 = y2 + dy2;
+
+  // After stubs collinear → straight through stubs
+  if (Math.abs(sx1 - sx2) < 2 && v1 && v2) {
+    return [{ x: x1, y: y1 }, { x: x2, y: y2 }];
+  }
+  if (Math.abs(sy1 - sy2) < 2 && !v1 && !v2) {
+    return [{ x: x1, y: y1 }, { x: x2, y: y2 }];
+  }
+
+  const midX = (sx1 + sx2) / 2;
+  const midY = (sy1 + sy2) / 2;
+
+  if (v1 && v2) {
+    // Both vertical → U-shape: go down/up stubs, then horizontal bridge, then come in from same side
+    return [
+      { x: x1, y: y1 }, { x: sx1, y: sy1 },
+      { x: sx1, y: midY }, { x: sx2, y: midY },
+      { x: sx2, y: sy2 }, { x: x2, y: y2 },
+    ];
+  }
+  if (!v1 && !v2) {
+    // Both horizontal → vertical bridge
+    return [
+      { x: x1, y: y1 }, { x: sx1, y: sy1 },
+      { x: midX, y: sy1 }, { x: midX, y: sy2 },
+      { x: sx2, y: sy2 }, { x: x2, y: y2 },
+    ];
+  }
+  // Mixed: one vertical + one horizontal → single elbow
+  if (v1) {
+    // p1 exits vertically, p2 exits horizontally
+    return [
+      { x: x1, y: y1 }, { x: sx1, y: sy1 },
+      { x: sx2, y: sy1 }, { x: sx2, y: sy2 }, { x: x2, y: y2 },
+    ];
+  }
+  // p1 exits horizontally, p2 exits vertically
   return [
-    { x: x1, y: y1 },
-    { x: x1, y: midY },
-    { x: x2, y: midY },
-    { x: x2, y: y2 },
+    { x: x1, y: y1 }, { x: sx1, y: sy1 },
+    { x: sx1, y: sy2 }, { x: sx2, y: sy2 }, { x: x2, y: y2 },
   ];
 }
 
@@ -685,7 +973,10 @@ function renderAllWires() {
     const to   = getPortWorldPos(wire.to.compId, wire.to.portId);
     if (!from || !to) return;
 
-    const pts = routeWire(from.x, from.y, to.x, to.y);
+    const dir1 = getPortDirection(wire.from.compId, wire.from.portId);
+    const dir2 = getPortDirection(wire.to.compId, wire.to.portId);
+    const pts = routeWire(from.x, from.y, to.x, to.y, dir1, dir2);
+
     const polyline = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
     polyline.classList.add('wire');
     if (state.selectedWire === idx) polyline.classList.add('selected');
@@ -747,6 +1038,20 @@ function bindPropertiesEvents() {
     const comp = getComp(state.selected);
     if (comp) { comp.props.voltage = $propVoltage.value; renderComponent(comp); }
   });
+
+  // Dynamic params field delegation
+  const $paramsContainer = document.getElementById('props-params');
+  $paramsContainer.addEventListener('change', e => {
+    const inp = e.target;
+    if (!inp.dataset.paramId) return;
+    const comp = getComp(state.selected);
+    if (!comp) return;
+    comp.props[inp.dataset.paramId] = inp.type === 'number' ? parseFloat(inp.value) : inp.value;
+    renderComponent(comp);
+  });
+
+  // Catalogue browser
+  bindCatalogueBrowser();
 }
 
 function updatePropertiesPanel() {
@@ -767,24 +1072,29 @@ function updatePropertiesPanel() {
   $propLabelPos.value   = comp.labelPos;
   $propLabelAlign.value = comp.labelAlign;
 
-  // Voltage
-  if (comp.props.voltage !== undefined) {
-    $propVoltageG.style.display = '';
-    $propVoltage.value = comp.props.voltage || '';
-  } else {
-    $propVoltageG.style.display = 'none';
-  }
+  // Voltage (legacy field — hidden in favour of params)
+  $propVoltageG.style.display = 'none';
+  $propRatingG.style.display = 'none';
 
-  // Rating
-  if (comp.props.rating !== undefined) {
-    $propRatingG.style.display = '';
-    $propRating.value = comp.props.rating || '';
-  } else if (comp.props.ratio !== undefined) {
-    $propRatingG.style.display = '';
-    $propRating.parentElement.querySelector('.prop-label').textContent = 'Ratio';
-    $propRating.value = comp.props.ratio || '';
-  } else {
-    $propRatingG.style.display = 'none';
+  // Analysis parameters section
+  renderParamFields(comp);
+
+  // Catalogue section — show for relevant types
+  const catalogueTypes = new Set(['cb', 'disconnector', 'fuse', 'relay_oc', 'relay_diff', 'relay_dist', 'relay_ef', 'ct', 'vt']);
+  const catSection = document.getElementById('catalogue-section');
+  if (catSection) catSection.style.display = catalogueTypes.has(comp.type) ? '' : 'none';
+
+  // Pre-select catalogue category to match component type
+  const catMap = {
+    cb: 'circuit_breakers', disconnector: 'disconnectors', fuse: 'fuses',
+    relay_oc: 'protection_relays', relay_diff: 'protection_relays',
+    relay_dist: 'protection_relays', relay_ef: 'protection_relays',
+    ct: 'current_transformers', vt: 'voltage_transformers',
+  };
+  const catTypeEl = document.getElementById('cat-type-filter');
+  if (catTypeEl && catMap[comp.type]) {
+    catTypeEl.value = catMap[comp.type];
+    renderCatalogueTable(catMap[comp.type]);
   }
 
   // Relay CT requirements
@@ -835,6 +1145,264 @@ function updatePropertiesPanel() {
       $propConns.appendChild(div);
     });
   }
+}
+
+/* ═══════════════════════════════════════════════════════
+   ANALYSIS PARAMETER FIELDS RENDERER
+   ═══════════════════════════════════════════════════════ */
+
+function renderParamFields(comp) {
+  const container = document.getElementById('props-params');
+  const titleEl   = document.getElementById('params-section-title');
+  if (!container) return;
+
+  const schema = (typeof COMP_PARAMS !== 'undefined') ? COMP_PARAMS[comp.type] : null;
+  if (!schema || schema.length === 0) {
+    container.innerHTML = '';
+    if (titleEl) titleEl.style.display = 'none';
+    return;
+  }
+  if (titleEl) titleEl.style.display = '';
+
+  container.innerHTML = schema.map(field => {
+    const val = (comp.props[field.id] !== undefined) ? comp.props[field.id] : field.default;
+    const unitSpan = field.unit ? `<span class="param-unit">${field.unit}</span>` : '';
+
+    if (field.type === 'select') {
+      const opts = (field.options || []).map(o =>
+        `<option value="${o}" ${String(val) === o ? 'selected' : ''}>${o}</option>`
+      ).join('');
+      return `<div class="param-group">
+        <label class="param-label">${field.label}</label>
+        <div class="param-input-wrap">
+          <select class="param-input" data-param-id="${field.id}">${opts}</select>
+          ${unitSpan}
+        </div>
+      </div>`;
+    }
+
+    const minAttr = field.min !== undefined ? `min="${field.min}"` : '';
+    const maxAttr = field.max !== undefined ? `max="${field.max}"` : '';
+    const stepAttr = field.step !== undefined ? `step="${field.step}"` : '';
+    const inputType = field.type === 'number' ? 'number' : 'text';
+    return `<div class="param-group">
+      <label class="param-label">${field.label}</label>
+      <div class="param-input-wrap">
+        <input type="${inputType}" class="param-input" data-param-id="${field.id}"
+          value="${val}" ${minAttr} ${maxAttr} ${stepAttr} />
+        ${unitSpan}
+      </div>
+    </div>`;
+  }).join('');
+
+  // Ensure props are initialised with defaults
+  schema.forEach(field => {
+    if (comp.props[field.id] === undefined) {
+      comp.props[field.id] = field.default;
+    }
+  });
+}
+
+/* ═══════════════════════════════════════════════════════
+   CATALOGUE BROWSER
+   ═══════════════════════════════════════════════════════ */
+
+let _catSelectedRow = null;
+
+function bindCatalogueBrowser() {
+  const typeFilter    = document.getElementById('cat-type-filter');
+  const voltFilter    = document.getElementById('cat-voltage-filter');
+  const searchInput   = document.getElementById('cat-search');
+  const applyBtn      = document.getElementById('cat-apply-btn');
+  if (!typeFilter) return;
+
+  typeFilter.addEventListener('change', () => {
+    const cat = typeFilter.value;
+    const showVolt = cat === 'circuit_breakers' || cat === 'disconnectors' || cat === 'fuses';
+    voltFilter.style.display = showVolt ? '' : 'none';
+    _catSelectedRow = null;
+    if (applyBtn) applyBtn.style.display = 'none';
+    renderCatalogueTable(cat);
+  });
+  voltFilter.addEventListener('change', () => renderCatalogueTable(typeFilter.value));
+  if (searchInput) searchInput.addEventListener('input', () => renderCatalogueTable(typeFilter.value));
+
+  if (applyBtn) {
+    applyBtn.addEventListener('click', () => {
+      if (!_catSelectedRow) return;
+      const comp = getComp(state.selected);
+      if (!comp) return;
+      applyCatalogueRow(comp, _catSelectedRow, typeFilter.value);
+      updatePropertiesPanel();
+      showToast('Catalogue data applied to ' + comp.name);
+    });
+  }
+}
+
+function renderCatalogueTable(catKey) {
+  const thead = document.getElementById('catalogue-thead');
+  const tbody = document.getElementById('catalogue-tbody');
+  const applyBtn = document.getElementById('cat-apply-btn');
+  const searchInput = document.getElementById('cat-search');
+  const voltFilter = document.getElementById('cat-voltage-filter');
+  if (!thead || !tbody || typeof CATALOGUE === 'undefined') return;
+
+  _catSelectedRow = null;
+  if (applyBtn) applyBtn.style.display = 'none';
+
+  let data = CATALOGUE[catKey] || [];
+  const search = searchInput ? searchInput.value.toLowerCase() : '';
+  const voltClass = voltFilter ? voltFilter.value : '';
+
+  // Filter
+  if (search) {
+    data = data.filter(r =>
+      (r.mfr + ' ' + (r.model||'') + ' ' + (r.type||r.fn||'')).toLowerCase().includes(search)
+    );
+  }
+  if (voltClass && (catKey === 'circuit_breakers')) {
+    data = data.filter(r => {
+      if (voltClass === 'LVCB') return r.kv <= 1;
+      if (voltClass === 'MVCB') return r.kv > 1 && r.kv <= 36;
+      if (voltClass === 'HVCB') return r.kv > 36;
+      return true;
+    });
+  }
+
+  // Column definitions per catalogue type
+  const COLS = {
+    circuit_breakers: [
+      { key:'mfr', label:'Manufacturer' },
+      { key:'model', label:'Model' },
+      { key:'tech', label:'Technology' },
+      { key:'kv', label:'kV' },
+      { key:'a', label:'A' },
+      { key:'icu', label:'Icu (kA)' },
+      { key:'icm', label:'Icm (kA)' },
+      { key:'stkw', label:'STW (kA)' },
+      { key:'t_open', label:'t-open (ms)' },
+    ],
+    disconnectors: [
+      { key:'mfr', label:'Manufacturer' },
+      { key:'model', label:'Model' },
+      { key:'type', label:'Type' },
+      { key:'kv', label:'kV' },
+      { key:'a', label:'A' },
+      { key:'stkw', label:'STW (kA)' },
+      { key:'peak', label:'Peak (kA)' },
+      { key:'ins_kv', label:'BIL (kV)' },
+    ],
+    fuses: [
+      { key:'mfr', label:'Manufacturer' },
+      { key:'model', label:'Model' },
+      { key:'kv', label:'kV' },
+      { key:'a', label:'A' },
+      { key:'icu', label:'Icu (kA)' },
+      { key:'fuse_class', label:'Class' },
+    ],
+    protection_relays: [
+      { key:'mfr', label:'Manufacturer' },
+      { key:'model', label:'Model' },
+      { key:'code', label:'ANSI Code' },
+      { key:'fn', label:'Function' },
+      { key:'ct_in', label:'CT In' },
+      { key:'vt_in', label:'VT In' },
+      { key:'comms', label:'Comms' },
+      { key:'pickup', label:'Pickup Range' },
+    ],
+    current_transformers: [
+      { key:'mfr', label:'Manufacturer' },
+      { key:'model', label:'Model' },
+      { key:'kv', label:'kV' },
+      { key:'ip', label:'Ip (A)' },
+      { key:'is', label:'Is (A)' },
+      { key:'class', label:'Class' },
+      { key:'burden', label:'Burden (VA)' },
+      { key:'alf', label:'ALF' },
+    ],
+    voltage_transformers: [
+      { key:'mfr', label:'Manufacturer' },
+      { key:'model', label:'Model' },
+      { key:'type', label:'Type' },
+      { key:'kv_p', label:'Vp (kV)' },
+      { key:'kv_s_v', label:'Vs (V)' },
+      { key:'class', label:'Class' },
+      { key:'burden', label:'Burden (VA)' },
+    ],
+  };
+
+  const cols = COLS[catKey] || [];
+  thead.innerHTML = '<tr>' + cols.map(c => `<th>${c.label}</th>`).join('') + '</tr>';
+
+  tbody.innerHTML = data.slice(0, 60).map(row => {
+    const cells = cols.map(c => `<td>${row[c.key] ?? '–'}</td>`).join('');
+    return `<tr data-cat-id="${row.id}">${cells}</tr>`;
+  }).join('') || '<tr><td colspan="10" style="text-align:center;color:var(--text-dim)">No results</td></tr>';
+
+  // Row click → select
+  tbody.querySelectorAll('tr[data-cat-id]').forEach(tr => {
+    tr.addEventListener('click', () => {
+      tbody.querySelectorAll('tr').forEach(r => r.classList.remove('cat-selected'));
+      tr.classList.add('cat-selected');
+      const rowId = tr.dataset.catId;
+      _catSelectedRow = data.find(r => r.id === rowId);
+      if (applyBtn) applyBtn.style.display = '';
+    });
+  });
+}
+
+function applyCatalogueRow(comp, row, catKey) {
+  if (!row) return;
+  if (catKey === 'circuit_breakers') {
+    comp.props.cb_type  = row.tech || comp.props.cb_type;
+    comp.props.kv       = row.kv;
+    comp.props.rating_a = row.a;
+    comp.props.icu      = row.icu;
+    comp.props.ics      = row.ics || row.icu;
+    comp.props.icm      = row.icm;
+    comp.props.stkw     = row.stkw;
+    comp.props.t_open   = row.t_open;
+    comp.props.t_close  = row.t_close;
+    comp.name = row.mfr + ' ' + row.model;
+  } else if (catKey === 'disconnectors') {
+    comp.props.ds_type  = row.type;
+    comp.props.kv       = row.kv;
+    comp.props.rating_a = row.a;
+    comp.props.stkw     = row.stkw;
+    comp.props.peak     = row.peak;
+    comp.props.ins_kv   = row.ins_kv;
+    comp.name = row.mfr + ' ' + row.model;
+  } else if (catKey === 'fuses') {
+    comp.props.fuse_type = row.fuse_class;
+    comp.props.kv        = row.kv;
+    comp.props.rating_a  = row.a;
+    comp.props.icu       = row.icu;
+    comp.props.i2t_min   = row.i2t_min;
+    comp.props.i2t_max   = row.i2t_max;
+    comp.name = row.mfr + ' ' + row.model;
+  } else if (catKey === 'protection_relays') {
+    comp.props.relay_model = row.model;
+    comp.props.relay_mfr   = row.mfr;
+    comp.name = row.mfr + ' ' + row.model + ' (' + row.code + ')';
+  } else if (catKey === 'current_transformers') {
+    comp.props.ratio   = row.ip + '/' + row.is;
+    comp.props.class   = row.class;
+    comp.props.burden  = row.burden;
+    comp.props.alf     = row.alf;
+    comp.props.thermal = row.thermal;
+    comp.props.dynamic = row.dynamic;
+    comp.props.kv      = row.kv;
+    comp.name = row.mfr + ' ' + row.model;
+  } else if (catKey === 'voltage_transformers') {
+    comp.props.vt_type = row.type;
+    comp.props.ratio   = row.kv_p * 1000 + '/' + row.kv_s_v;
+    comp.props.class   = row.class;
+    comp.props.burden  = row.burden;
+    comp.props.kv      = row.kv_p;
+    comp.props.sec_v   = row.kv_s_v;
+    comp.name = row.mfr + ' ' + row.model;
+  }
+  renderComponent(comp);
 }
 
 function findConnectedCTs(relayComp) {
