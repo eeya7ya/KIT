@@ -560,6 +560,20 @@ a:hover { text-decoration: underline; }
   margin-top: 4px;
 }
 
+.tool-card.active-tool {
+  border-color: rgba(255, 215, 0, 0.4);
+  background: rgba(255, 215, 0, 0.04);
+}
+.tool-card.active-tool:hover {
+  border-color: rgba(255, 215, 0, 0.6);
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.1);
+}
+.tool-badge.active-badge {
+  background: rgba(255, 215, 0, 0.15);
+  border-color: rgba(255, 215, 0, 0.3);
+  color: #ffd700;
+}
+
 /* ══════════════════════════════════════════════════════
    Particle canvas for dashboard bg (optional)
    ══════════════════════════════════════════════════════ */
