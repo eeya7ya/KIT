@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KIT — Single Line Diagram Editor</title>
+  <link rel="stylesheet" href="sld.css" />
+</head>
+<body>
+
+  <!-- ═══════════════════════════════════════════════════
+       TOP TOOLBAR
+  ════════════════════════════════════════════════════ -->
+  <div class="sld-toolbar">
+    <div class="toolbar-left">
+      <a href="index.html" class="toolbar-brand" title="Back to Dashboard">
+        <div class="logo-mark-sm">K</div>
+        <span>KIT</span>
+      </a>
+      <div class="toolbar-sep"></div>
+      <span class="toolbar-title">Single Line Diagram</span>
+    </div>
+
+    <div class="toolbar-center">
+      <button class="tb-btn" id="btn-pointer" title="Select (V)" data-active="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 3l7.07 16.97 2.51-7.39 7.39-2.51L3 3z"/>
+        </svg>
+      </button>
+      <button class="tb-btn" id="btn-connect" title="Connect (C)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="5" cy="12" r="3"/><circle cx="19" cy="12" r="3"/>
+          <line x1="8" y1="12" x2="16" y2="12"/>
+        </svg>
+      </button>
+      <div class="toolbar-sep"></div>
+      <button class="tb-btn" id="btn-grid" title="Toggle Grid (G)" data-active="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <line x1="4" y1="4" x2="4" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/>
+          <line x1="20" y1="4" x2="20" y2="20"/><line x1="4" y1="4" x2="20" y2="4"/>
+          <line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="20" x2="20" y2="20"/>
+        </svg>
+      </button>
+      <button class="tb-btn" id="btn-snap" title="Snap to Grid (S)" data-active="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+          <path d="M10 7h4M7 10v4M14 17h-4M17 14v-4" stroke-dasharray="2 2"/>
+        </svg>
+      </button>
+      <div class="toolbar-sep"></div>
+      <button class="tb-btn" id="btn-zoom-in" title="Zoom In (+)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/>
+          <line x1="8" y1="12" x2="16" y2="12"/>
+        </svg>
+      </button>
+      <span class="zoom-label" id="zoom-label">100%</span>
+      <button class="tb-btn" id="btn-zoom-out" title="Zoom Out (-)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="9"/><line x1="8" y1="12" x2="16" y2="12"/>
+        </svg>
+      </button>
+      <button class="tb-btn" id="btn-zoom-fit" title="Fit View (F)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 8V5a2 2 0 012-2h3M16 3h3a2 2 0 012 2v3M21 16v3a2 2 0 01-2 2h-3M8 21H5a2 2 0 01-2-2v-3"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="toolbar-right">
+      <button class="tb-btn" id="btn-delete" title="Delete Selected (Del)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
+          <path d="M10 11v6M14 11v6"/>
+        </svg>
+      </button>
+      <button class="tb-btn" id="btn-clear" title="Clear All">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 6L6 18M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════
+       MAIN LAYOUT: PALETTE + CANVAS + PROPERTIES
+  ════════════════════════════════════════════════════ -->
+  <div class="sld-layout">
+
+    <!-- LEFT: Component Palette -->
+    <aside class="sld-palette" id="palette">
+      <div class="palette-header">Components</div>
+
+      <div class="palette-section">
+        <div class="palette-section-title">Power Sources</div>
+        <div class="palette-item" data-type="utility" draggable="true">
+          <div class="palette-icon" id="pi-utility"></div>
+          <span>Utility / Grid</span>
+        </div>
+        <div class="palette-item" data-type="generator" draggable="true">
+          <div class="palette-icon" id="pi-generator"></div>
+          <span>Generator</span>
+        </div>
+      </div>
+
+      <div class="palette-section">
+        <div class="palette-section-title">Conductors</div>
+        <div class="palette-item" data-type="bus" draggable="true">
+          <div class="palette-icon" id="pi-bus"></div>
+          <span>Bus Bar</span>
+        </div>
+        <div class="palette-item" data-type="line" draggable="true">
+          <div class="palette-icon" id="pi-line"></div>
+          <span>Trans. Line</span>
+        </div>
+        <div class="palette-item" data-type="cable" draggable="true">
+          <div class="palette-icon" id="pi-cable"></div>
+          <span>Cable</span>
+        </div>
+      </div>
+
+      <div class="palette-section">
+        <div class="palette-section-title">Transformers</div>
+        <div class="palette-item" data-type="transformer2w" draggable="true">
+          <div class="palette-icon" id="pi-transformer2w"></div>
+          <span>2-Winding Xfmr</span>
+        </div>
+        <div class="palette-item" data-type="transformer3w" draggable="true">
+          <div class="palette-icon" id="pi-transformer3w"></div>
+          <span>3-Winding Xfmr</span>
+        </div>
+      </div>
+
+      <div class="palette-section">
+        <div class="palette-section-title">Switching</div>
+        <div class="palette-item" data-type="cb" draggable="true">
+          <div class="palette-icon" id="pi-cb"></div>
+          <span>Circuit Breaker</span>
+        </div>
+        <div class="palette-item" data-type="disconnector" draggable="true">
+          <div class="palette-icon" id="pi-disconnector"></div>
+          <span>Disconnector</span>
+        </div>
+        <div class="palette-item" data-type="fuse" draggable="true">
+          <div class="palette-icon" id="pi-fuse"></div>
+          <span>Fuse</span>
+        </div>
+      </div>
+
+      <div class="palette-section">
+        <div class="palette-section-title">Loads & Motors</div>
+        <div class="palette-item" data-type="load" draggable="true">
+          <div class="palette-icon" id="pi-load"></div>
+          <span>Static Load</span>
+        </div>
+        <div class="palette-item" data-type="motor" draggable="true">
+          <div class="palette-icon" id="pi-motor"></div>
+          <span>Motor</span>
+        </div>
+      </div>
+
+      <div class="palette-section">
+        <div class="palette-section-title">Instrument Transformers</div>
+        <div class="palette-item" data-type="ct" draggable="true">
+          <div class="palette-icon" id="pi-ct"></div>
+          <span>CT</span>
+        </div>
+        <div class="palette-item" data-type="vt" draggable="true">
+          <div class="palette-icon" id="pi-vt"></div>
+          <span>VT / PT</span>
+        </div>
+      </div>
+
+      <div class="palette-section">
+        <div class="palette-section-title">Protection Relays</div>
+        <div class="palette-item" data-type="relay_oc" draggable="true">
+          <div class="palette-icon" id="pi-relay-oc"></div>
+          <span>Overcurrent (50/51)</span>
+        </div>
+        <div class="palette-item" data-type="relay_diff" draggable="true">
+          <div class="palette-icon" id="pi-relay-diff"></div>
+          <span>Differential (87)</span>
+        </div>
+        <div class="palette-item" data-type="relay_dist" draggable="true">
+          <div class="palette-icon" id="pi-relay-dist"></div>
+          <span>Distance (21)</span>
+        </div>
+        <div class="palette-item" data-type="relay_ef" draggable="true">
+          <div class="palette-icon" id="pi-relay-ef"></div>
+          <span>Earth Fault (51N)</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CENTER: Infinite Canvas -->
+    <div class="sld-canvas-wrap" id="canvas-wrap">
+      <div class="sld-canvas" id="sld-canvas">
+        <!-- Grid rendered via CSS -->
+        <!-- SVG layer for wires/connections -->
+        <svg class="sld-wires" id="sld-wires"></svg>
+        <!-- Component layer -->
+        <div class="sld-components" id="sld-components"></div>
+      </div>
+
+      <!-- Minimap -->
+      <div class="sld-minimap" id="minimap">
+        <canvas id="minimap-canvas" width="180" height="130"></canvas>
+        <div class="minimap-viewport" id="minimap-viewport"></div>
+      </div>
+
+      <!-- Coordinates display -->
+      <div class="sld-coords" id="sld-coords">X: 0  Y: 0</div>
+    </div>
+
+    <!-- RIGHT: Properties Panel -->
+    <aside class="sld-properties" id="properties-panel">
+      <div class="palette-header">Properties</div>
+      <div class="props-empty" id="props-empty">
+        <p>Select a component to view its properties</p>
+      </div>
+      <div class="props-content" id="props-content" style="display:none;">
+        <div class="prop-group">
+          <label class="prop-label">Name / ID</label>
+          <input type="text" class="prop-input" id="prop-name" />
+        </div>
+        <div class="prop-group">
+          <label class="prop-label">Type</label>
+          <input type="text" class="prop-input" id="prop-type" readonly />
+        </div>
+        <div class="prop-group">
+          <label class="prop-label">Label Position</label>
+          <select class="prop-input" id="prop-label-pos">
+            <option value="top">Top</option>
+            <option value="bottom">Bottom</option>
+            <option value="left">Left</option>
+            <option value="right">Right</option>
+          </select>
+        </div>
+        <div class="prop-group">
+          <label class="prop-label">Label Alignment</label>
+          <select class="prop-input" id="prop-label-align">
+            <option value="center">Center</option>
+            <option value="left">Left</option>
+            <option value="right">Right</option>
+          </select>
+        </div>
+        <div class="prop-group" id="prop-rating-group">
+          <label class="prop-label">Rating</label>
+          <input type="text" class="prop-input" id="prop-rating" placeholder="e.g. 100 MVA" />
+        </div>
+        <div class="prop-group" id="prop-voltage-group">
+          <label class="prop-label">Voltage (kV)</label>
+          <input type="text" class="prop-input" id="prop-voltage" placeholder="e.g. 132" />
+        </div>
+        <div class="prop-group" id="prop-relay-ct-group" style="display:none;">
+          <label class="prop-label">Connected CTs</label>
+          <div class="prop-ct-list" id="prop-ct-list"></div>
+          <p class="prop-hint" id="prop-ct-hint"></p>
+        </div>
+        <div class="prop-group">
+          <label class="prop-label">Connections</label>
+          <div class="prop-connections" id="prop-connections"></div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Tooltip for ports -->
+  <div class="port-tooltip" id="port-tooltip" style="display:none;"></div>
+
+  <script src="sld-components.js"></script>
+  <script src="sld-engine.js"></script>
+</body>
+</html>

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>KIT — Web Engineering &amp; Analysis Platform</title>
+  <title>KIT — Power System Simulator</title>
   <link rel="stylesheet" href="style.css" />
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
@@ -20,7 +20,7 @@
       <div class="galaxy-overlay">
         <div class="brand-tagline">
           <h1 class="brand-name">KIT</h1>
-          <p class="brand-sub">Web Engineering &amp; Analysis Platform</p>
+          <p class="brand-sub">Power System Simulator</p>
         </div>
       </div>
     </div>
@@ -82,7 +82,7 @@
         <span>KIT</span>
       </div>
       <div class="nav-center">
-        <span class="nav-title">Engineering &amp; Analysis Platform</span>
+        <span class="nav-title">Power System Simulator</span>
       </div>
       <div class="nav-user">
         <img id="user-avatar" src="" alt="User" class="avatar" />
@@ -100,19 +100,22 @@
 
       <div class="tools-grid">
 
-        <!-- Tool Card 1 -->
-        <div class="tool-card coming-soon" data-tool="performance">
+        <!-- Tool Card 1: SLD Editor (active) -->
+        <a href="sld.html" class="tool-card active-tool" data-tool="sld" style="text-decoration:none;color:inherit;">
           <div class="tool-icon">
             <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M6 36L18 24L26 32L38 18" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-              <circle cx="38" cy="18" r="3" fill="currentColor"/>
-              <path d="M6 42H42" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              <line x1="10" y1="12" x2="38" y2="12" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+              <line x1="24" y1="12" x2="24" y2="22" stroke="currentColor" stroke-width="2"/>
+              <circle cx="24" cy="27" r="5" stroke="currentColor" stroke-width="2"/>
+              <circle cx="24" cy="37" r="5" stroke="currentColor" stroke-width="2"/>
+              <line x1="10" y1="44" x2="38" y2="44" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+              <line x1="24" y1="42" x2="24" y2="44" stroke="currentColor" stroke-width="2"/>
             </svg>
           </div>
-          <h3>Performance Analyzer</h3>
-          <p>Profile and benchmark web application performance metrics in real time.</p>
-          <div class="tool-badge">Coming Soon</div>
-        </div>
+          <h3>SLD Editor</h3>
+          <p>Draw single-line diagrams with buses, transformers, relays, and protection schemes.</p>
+          <div class="tool-badge active-badge">Open</div>
+        </a>
 
         <!-- Tool Card 2 -->
         <div class="tool-card coming-soon" data-tool="seo">
