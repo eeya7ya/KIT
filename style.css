@@ -98,13 +98,28 @@ a:hover { text-decoration: underline; }
   gap: 24px;
   pointer-events: none;
 }
+.galaxy-overlay > * {
+  pointer-events: all;
+}
 
-/* Large logo in brand panel */
-.brand-logo-img {
-  width: 120px;
-  height: auto;
-  border-radius: 24px;
-  box-shadow: 0 12px 40px rgba(217,119,6,0.18), 0 4px 12px rgba(0,0,0,0.08);
+/* ── Mascot ───────────────────────────────────────────── */
+.mascot-wrap {
+  width: 160px;
+  height: 180px;
+  position: relative;
+  transform-origin: bottom center;
+  will-change: transform;
+  filter: drop-shadow(0 12px 24px rgba(180,120,40,0.22))
+          drop-shadow(0 2px 6px rgba(0,0,0,0.10));
+  transition: filter 0.3s ease;
+}
+.mascot-wrap:hover {
+  filter: drop-shadow(0 16px 32px rgba(217,119,6,0.30))
+          drop-shadow(0 2px 8px rgba(0,0,0,0.12));
+}
+.mascot-wrap svg {
+  display: block;
+  pointer-events: all;
 }
 
 .brand-tagline {
