@@ -142,13 +142,40 @@ function bindToolbar() {
   document.getElementById('btn-undo').addEventListener('click', undo);
   document.getElementById('btn-redo').addEventListener('click', redo);
   document.getElementById('btn-rotate').addEventListener('click', rotateSelected);
-  document.getElementById('btn-pf').addEventListener('click', runPowerFlow);
 
-  // PF modal close buttons
-  document.getElementById('pf-close-btn').addEventListener('click', () => {
-    document.getElementById('pf-modal').style.display = 'none';
+  // Studies modal
+  const studiesBtn  = document.getElementById('btn-studies');
+  const studyModal  = document.getElementById('study-modal');
+  const studyClose  = document.getElementById('study-close-btn');
+  const pfRunBtn    = document.getElementById('pf-run-btn');
+  const pfClearBtn  = document.getElementById('pf-clear-overlay-btn');
+
+  if (studiesBtn && studyModal) {
+    studiesBtn.addEventListener('click', () => {
+      studyModal.style.display = studyModal.style.display === 'flex' ? 'none' : 'flex';
+    });
+  }
+  if (studyClose)  studyClose.addEventListener('click', () => { studyModal.style.display = 'none'; });
+  if (pfRunBtn)    pfRunBtn.addEventListener('click', runPowerFlow);
+  if (pfClearBtn)  pfClearBtn.addEventListener('click', () => {
+    document.querySelectorAll('.pf-voltage-label, .pf-branch-label').forEach(el => el.remove());
+    showToast('SLD overlay cleared');
   });
-  document.getElementById('pf-rerun-btn').addEventListener('click', runPowerFlow);
+
+  // Study tab switching
+  document.querySelectorAll('.study-tab:not(.study-tab-soon)').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.study-tab').forEach(t => t.classList.remove('study-tab-active'));
+      tab.classList.add('study-tab-active');
+    });
+  });
+
+  // Close study modal on backdrop click
+  if (studyModal) {
+    studyModal.addEventListener('click', e => {
+      if (e.target === studyModal) studyModal.style.display = 'none';
+    });
+  }
 }
 
 function setMode(mode) {
@@ -584,6 +611,22 @@ function bindPaletteEvents() {
    COMPONENT MANAGEMENT
    ═══════════════════════════════════════════════════════ */
 
+function _getCompSublabel(comp) {
+  const p = comp.props || {};
+  // Show kV for busbar, utility, generator, cable, line, transformer
+  if (['bus', 'utility', 'generator', 'cable', 'line', 'transformer2w', 'transformer3w'].includes(comp.type)) {
+    const kv = p.kv || p.voltage;
+    if (kv) return kv + ' kV';
+  }
+  // Show rating for generators
+  if (p.rating) return p.rating;
+  // Show ratio for CTs/VTs
+  if (p.ratio) return p.ratio;
+  // Show current for CBs
+  if (comp.type === 'cb' && p.rating_a) return p.rating_a + ' A';
+  return '';
+}
+
 function addComponent(type, x, y) {
   const def = SLD_COMP[type];
   if (!def) return;
@@ -628,13 +671,8 @@ function createComponentDOM(comp) {
   const label = document.createElement('div');
   label.className = `comp-label pos-${comp.labelPos} align-${comp.labelAlign}`;
   label.innerHTML = `<span class="comp-label-name">${comp.name}</span>`;
-  if (comp.props.voltage) {
-    label.innerHTML += `<span class="comp-sublabel">${comp.props.voltage} kV</span>`;
-  } else if (comp.props.rating) {
-    label.innerHTML += `<span class="comp-sublabel">${comp.props.rating}</span>`;
-  } else if (comp.props.ratio) {
-    label.innerHTML += `<span class="comp-sublabel">${comp.props.ratio}</span>`;
-  }
+  const sublabel = _getCompSublabel(comp);
+  if (sublabel) label.innerHTML += `<span class="comp-sublabel">${sublabel}</span>`;
   el.appendChild(label);
 
   // Ports
@@ -653,13 +691,23 @@ function createComponentDOM(comp) {
     portEl.addEventListener('mousedown', e => {
       e.stopPropagation();
       if (state.mode === 'connect' || e.shiftKey) {
-        startConnection(comp.id, port.id, e);
+        if (state.connecting) {
+          // Click-click mode: second click on any port finishes connection
+          finishConnection(comp.id, port.id);
+        } else {
+          startConnection(comp.id, port.id, e);
+        }
       }
     });
     portEl.addEventListener('mouseup', e => {
       e.stopPropagation();
+      // Drag mode: releasing on a DIFFERENT port finishes the connection
       if (state.connecting) {
-        finishConnection(comp.id, port.id);
+        const { fromCompId, fromPortId } = state.connecting;
+        if (!(fromCompId === comp.id && fromPortId === port.id)) {
+          finishConnection(comp.id, port.id);
+        }
+        // Same port mouseup = user just clicked to start connecting; keep state.connecting active
       }
     });
 
@@ -698,13 +746,8 @@ function renderComponent(comp) {
   if (label) {
     label.className = `comp-label pos-${comp.labelPos} align-${comp.labelAlign}`;
     let html = `<span class="comp-label-name">${comp.name}</span>`;
-    if (comp.props.voltage) {
-      html += `<span class="comp-sublabel">${comp.props.voltage} kV</span>`;
-    } else if (comp.props.rating) {
-      html += `<span class="comp-sublabel">${comp.props.rating}</span>`;
-    } else if (comp.props.ratio) {
-      html += `<span class="comp-sublabel">${comp.props.ratio}</span>`;
-    }
+    const sub = _getCompSublabel(comp);
+    if (sub) html += `<span class="comp-sublabel">${sub}</span>`;
     label.innerHTML = html;
   }
 
@@ -840,6 +883,11 @@ function finishConnection(toCompId, toPortId) {
       from: { compId: fromCompId, portId: fromPortId },
       to:   { compId: toCompId,   portId: toPortId },
     });
+    // Infer busbar voltage from newly connected equipment
+    [fromCompId, toCompId].forEach(id => {
+      const c = getComp(id);
+      if (c && c.type === 'bus') inferBusbarVoltage(c);
+    });
     // Update port visuals
     renderComponent(getComp(fromCompId));
     renderComponent(getComp(toCompId));
@@ -847,6 +895,56 @@ function finishConnection(toCompId, toPortId) {
 
   cancelConnection();
   renderAllWires();
+}
+
+/* ── Busbar voltage inference ────────────────────────── */
+
+function inferBusbarVoltage(busComp) {
+  // Walk all wires touching this bus and inherit kV from first authoritative source found
+  const sourceTypes = new Set(['utility', 'generator']);
+  const passTypes   = new Set(['cb', 'disconnector', 'fuse', 'ct', 'vt']);
+
+  for (const wire of state.wires) {
+    const otherId =
+      wire.from.compId === busComp.id ? wire.to.compId :
+      wire.to.compId   === busComp.id ? wire.from.compId : null;
+    if (!otherId) continue;
+
+    const other = getComp(otherId);
+    if (!other) continue;
+
+    if (sourceTypes.has(other.type) && other.props.kv) {
+      busComp.props.kv = parseFloat(other.props.kv);
+      renderComponent(busComp);
+      return;
+    }
+
+    // Look through a pass-through (CB/DS/fuse) to the other side
+    if (passTypes.has(other.type)) {
+      const kv = _voltBeyondPass(otherId, busComp.id);
+      if (kv !== null) {
+        busComp.props.kv = kv;
+        renderComponent(busComp);
+        return;
+      }
+    }
+  }
+}
+
+function _voltBeyondPass(passId, fromId) {
+  for (const wire of state.wires) {
+    const otherId =
+      wire.from.compId === passId && wire.to.compId   !== fromId ? wire.to.compId :
+      wire.to.compId   === passId && wire.from.compId !== fromId ? wire.from.compId : null;
+    if (!otherId) continue;
+    const other = getComp(otherId);
+    if (!other) continue;
+    if ((other.type === 'utility' || other.type === 'generator') && other.props.kv) {
+      return parseFloat(other.props.kv);
+    }
+    if (other.type === 'bus' && other.props.kv) return parseFloat(other.props.kv);
+  }
+  return null;
 }
 
 function cancelConnection() {
@@ -900,16 +998,17 @@ function routeWire(x1, y1, x2, y2, dir1, dir2) {
 
   const v1 = (dir1 === 'up' || dir1 === 'down');
   const v2 = (dir2 === 'up' || dir2 === 'down');
-  const STUB = 24; // px minimum exit stub
+  const STUB = 24;           // px minimum exit stub
+  const SNAP_TOL = 20;       // snap-to-straight tolerance (one grid cell)
 
-  // ── STRAIGHT LINE: ports are collinear with matching directions ──
-  // Vertically aligned (same X) with both vertical-exit ports → straight vertical
-  if (Math.abs(x1 - x2) < 4 && v1 && v2) {
-    return [{ x: x1, y: y1 }, { x: x2, y: y2 }];
+  // ── STRAIGHT LINE: ports close enough to be collinear ──
+  if (v1 && v2 && Math.abs(x1 - x2) < SNAP_TOL) {
+    const mx = Math.round((x1 + x2) / 2);
+    return [{ x: mx, y: y1 }, { x: mx, y: y2 }];
   }
-  // Horizontally aligned (same Y) with both horizontal-exit ports → straight horizontal
-  if (Math.abs(y1 - y2) < 4 && !v1 && !v2) {
-    return [{ x: x1, y: y1 }, { x: x2, y: y2 }];
+  if (!v1 && !v2 && Math.abs(y1 - y2) < SNAP_TOL) {
+    const my = Math.round((y1 + y2) / 2);
+    return [{ x: x1, y: my }, { x: x2, y: my }];
   }
 
   // ── COMPUTE STUB EXIT POINTS ──
@@ -920,19 +1019,21 @@ function routeWire(x1, y1, x2, y2, dir1, dir2) {
   const sx1 = x1 + dx1, sy1 = y1 + dy1;
   const sx2 = x2 + dx2, sy2 = y2 + dy2;
 
-  // After stubs collinear → straight through stubs
-  if (Math.abs(sx1 - sx2) < 2 && v1 && v2) {
-    return [{ x: x1, y: y1 }, { x: x2, y: y2 }];
+  // After stubs collinear → straight
+  if (v1 && v2 && Math.abs(sx1 - sx2) < SNAP_TOL) {
+    const mx = Math.round((sx1 + sx2) / 2);
+    return [{ x: mx, y: y1 }, { x: mx, y: y2 }];
   }
-  if (Math.abs(sy1 - sy2) < 2 && !v1 && !v2) {
-    return [{ x: x1, y: y1 }, { x: x2, y: y2 }];
+  if (!v1 && !v2 && Math.abs(sy1 - sy2) < SNAP_TOL) {
+    const my = Math.round((sy1 + sy2) / 2);
+    return [{ x: x1, y: my }, { x: x2, y: my }];
   }
 
-  const midX = (sx1 + sx2) / 2;
-  const midY = (sy1 + sy2) / 2;
+  const midX = Math.round((sx1 + sx2) / 2);
+  const midY = Math.round((sy1 + sy2) / 2);
 
   if (v1 && v2) {
-    // Both vertical → U-shape: go down/up stubs, then horizontal bridge, then come in from same side
+    // Both vertical → U-shape via horizontal bridge
     return [
       { x: x1, y: y1 }, { x: sx1, y: sy1 },
       { x: sx1, y: midY }, { x: sx2, y: midY },
@@ -949,13 +1050,11 @@ function routeWire(x1, y1, x2, y2, dir1, dir2) {
   }
   // Mixed: one vertical + one horizontal → single elbow
   if (v1) {
-    // p1 exits vertically, p2 exits horizontally
     return [
       { x: x1, y: y1 }, { x: sx1, y: sy1 },
       { x: sx2, y: sy1 }, { x: sx2, y: sy2 }, { x: x2, y: y2 },
     ];
   }
-  // p1 exits horizontally, p2 exits vertically
   return [
     { x: x1, y: y1 }, { x: sx1, y: sy1 },
     { x: sx1, y: sy2 }, { x: sx2, y: sy2 }, { x: x2, y: y2 },
@@ -1079,23 +1178,31 @@ function updatePropertiesPanel() {
   // Analysis parameters section
   renderParamFields(comp);
 
-  // Catalogue section — show for relevant types
+  // Catalogue section — show for relevant types, pre-filtered to correct category
   const catalogueTypes = new Set(['cb', 'disconnector', 'fuse', 'relay_oc', 'relay_diff', 'relay_dist', 'relay_ef', 'ct', 'vt']);
   const catSection = document.getElementById('catalogue-section');
   if (catSection) catSection.style.display = catalogueTypes.has(comp.type) ? '' : 'none';
 
-  // Pre-select catalogue category to match component type
   const catMap = {
     cb: 'circuit_breakers', disconnector: 'disconnectors', fuse: 'fuses',
     relay_oc: 'protection_relays', relay_diff: 'protection_relays',
     relay_dist: 'protection_relays', relay_ef: 'protection_relays',
     ct: 'current_transformers', vt: 'voltage_transformers',
   };
+
+  // Lock the category to this component's type — no category picker needed
+  const lockedCat = catMap[comp.type];
   const catTypeEl = document.getElementById('cat-type-filter');
-  if (catTypeEl && catMap[comp.type]) {
-    catTypeEl.value = catMap[comp.type];
-    renderCatalogueTable(catMap[comp.type]);
+  if (catTypeEl) {
+    catTypeEl.value = lockedCat || '';
+    // Hide generic category dropdown when type is locked
+    catTypeEl.style.display = lockedCat ? 'none' : '';
   }
+
+  // Rebuild the CB-specific or relay-specific filter bar
+  buildCatFilters(comp.type, lockedCat);
+
+  if (lockedCat) renderCatalogueTable(lockedCat);
 
   // Relay CT requirements
   if (def.requiredCT) {
@@ -1208,145 +1315,276 @@ function renderParamFields(comp) {
    ═══════════════════════════════════════════════════════ */
 
 let _catSelectedRow = null;
+let _currentCatKey  = null;
 
 function bindCatalogueBrowser() {
-  const typeFilter    = document.getElementById('cat-type-filter');
-  const voltFilter    = document.getElementById('cat-voltage-filter');
-  const searchInput   = document.getElementById('cat-search');
-  const applyBtn      = document.getElementById('cat-apply-btn');
+  const typeFilter  = document.getElementById('cat-type-filter');
+  const searchInput = document.getElementById('cat-search');
+  const applyBtn    = document.getElementById('cat-apply-btn');
   if (!typeFilter) return;
 
+  // Generic category picker (only shown when no locked type)
   typeFilter.addEventListener('change', () => {
-    const cat = typeFilter.value;
-    const showVolt = cat === 'circuit_breakers' || cat === 'disconnectors' || cat === 'fuses';
-    voltFilter.style.display = showVolt ? '' : 'none';
     _catSelectedRow = null;
     if (applyBtn) applyBtn.style.display = 'none';
-    renderCatalogueTable(cat);
+    buildCatFilters(null, typeFilter.value);
+    renderCatalogueTable(typeFilter.value);
   });
-  voltFilter.addEventListener('change', () => renderCatalogueTable(typeFilter.value));
-  if (searchInput) searchInput.addEventListener('input', () => renderCatalogueTable(typeFilter.value));
+
+  if (searchInput) {
+    searchInput.addEventListener('input', () => renderCatalogueTable(_currentCatKey));
+  }
 
   if (applyBtn) {
     applyBtn.addEventListener('click', () => {
       if (!_catSelectedRow) return;
       const comp = getComp(state.selected);
       if (!comp) return;
-      applyCatalogueRow(comp, _catSelectedRow, typeFilter.value);
+      applyCatalogueRow(comp, _catSelectedRow, _currentCatKey);
       updatePropertiesPanel();
-      showToast('Catalogue data applied to ' + comp.name);
+      showToast('Applied: ' + (_catSelectedRow.mfr || '') + ' ' + (_catSelectedRow.model || ''));
     });
   }
 }
 
+/* Build the dynamic filter bar above the catalogue table */
+function buildCatFilters(compType, catKey) {
+  _currentCatKey = catKey;
+  const container = document.getElementById('cat-dynamic-filters');
+  if (!container) return;
+  container.innerHTML = '';
+
+  if (catKey === 'circuit_breakers') {
+    container.innerHTML = `
+      <div class="cat-filter-row">
+        <div class="cat-filter-group">
+          <label class="cat-filter-label">Voltage Class</label>
+          <select class="cat-filter-sel" id="cf-volt-class">
+            <option value="">All</option>
+            <option value="LVCB">LV (≤1 kV)</option>
+            <option value="MVCB">MV (1–36 kV)</option>
+            <option value="HVCB">HV (&gt;36 kV)</option>
+          </select>
+        </div>
+        <div class="cat-filter-group">
+          <label class="cat-filter-label">Technology</label>
+          <select class="cat-filter-sel" id="cf-tech">
+            <option value="">All</option>
+            <option value="ACB">ACB (Air)</option>
+            <option value="MCCB">MCCB</option>
+            <option value="VCB">VCB (Vacuum)</option>
+            <option value="SF6">SF6 Gas</option>
+          </select>
+        </div>
+        <div class="cat-filter-group">
+          <label class="cat-filter-label">Mechanism</label>
+          <select class="cat-filter-sel" id="cf-mech">
+            <option value="">All</option>
+            <option value="Motorized">Motorized</option>
+            <option value="Spring">Spring</option>
+            <option value="Manual">Manual</option>
+          </select>
+        </div>
+        <div class="cat-filter-group">
+          <label class="cat-filter-label">Min Current (A)</label>
+          <input type="number" class="cat-filter-num" id="cf-amin" placeholder="e.g. 630" min="0"/>
+        </div>
+        <div class="cat-filter-group">
+          <label class="cat-filter-label">Max Current (A)</label>
+          <input type="number" class="cat-filter-num" id="cf-amax" placeholder="e.g. 4000" min="0"/>
+        </div>
+      </div>`;
+    container.querySelectorAll('select,input').forEach(el =>
+      el.addEventListener('change', () => renderCatalogueTable(catKey))
+    );
+    container.querySelectorAll('input').forEach(el =>
+      el.addEventListener('input', () => renderCatalogueTable(catKey))
+    );
+
+  } else if (catKey === 'protection_relays') {
+    // Determine which relay function to pre-filter
+    const fnMap = {
+      relay_oc: 'Overcurrent', relay_ef: 'Earth Fault',
+      relay_diff: 'Differential', relay_dist: 'Distance',
+    };
+    const defaultFn = fnMap[compType] || '';
+    container.innerHTML = `
+      <div class="cat-filter-row">
+        <div class="cat-filter-group">
+          <label class="cat-filter-label">Function</label>
+          <select class="cat-filter-sel" id="cf-relay-fn">
+            <option value="">All</option>
+            <option value="Overcurrent" ${defaultFn==='Overcurrent'?'selected':''}>Overcurrent (50/51)</option>
+            <option value="Earth Fault"  ${defaultFn==='Earth Fault'?'selected':''}>Earth Fault (51N)</option>
+            <option value="Differential" ${defaultFn==='Differential'?'selected':''}>Differential (87)</option>
+            <option value="Distance"     ${defaultFn==='Distance'?'selected':''}>Distance (21)</option>
+            <option value="Breaker Fail">Breaker Failure (50BF)</option>
+            <option value="Busbar Diff">Busbar Diff (87B)</option>
+            <option value="Transformer Diff">Transformer Diff (87T)</option>
+          </select>
+        </div>
+        <div class="cat-filter-group">
+          <label class="cat-filter-label">TCC Curves</label>
+          <select class="cat-filter-sel" id="cf-tcc">
+            <option value="">Any</option>
+            <option value="IEC">IEC Curves</option>
+            <option value="IEEE">IEEE / ANSI Curves</option>
+            <option value="Mho">Mho / Distance</option>
+          </select>
+        </div>
+      </div>`;
+    container.querySelectorAll('select').forEach(el =>
+      el.addEventListener('change', () => renderCatalogueTable(catKey))
+    );
+  }
+}
+
 function renderCatalogueTable(catKey) {
-  const thead = document.getElementById('catalogue-thead');
-  const tbody = document.getElementById('catalogue-tbody');
+  if (!catKey) return;
+  _currentCatKey = catKey;
+
+  const thead    = document.getElementById('catalogue-thead');
+  const tbody    = document.getElementById('catalogue-tbody');
   const applyBtn = document.getElementById('cat-apply-btn');
-  const searchInput = document.getElementById('cat-search');
-  const voltFilter = document.getElementById('cat-voltage-filter');
+  const search   = (document.getElementById('cat-search')?.value || '').toLowerCase();
   if (!thead || !tbody || typeof CATALOGUE === 'undefined') return;
 
   _catSelectedRow = null;
   if (applyBtn) applyBtn.style.display = 'none';
 
-  let data = CATALOGUE[catKey] || [];
-  const search = searchInput ? searchInput.value.toLowerCase() : '';
-  const voltClass = voltFilter ? voltFilter.value : '';
+  let data = CATALOGUE[catKey] ? [...CATALOGUE[catKey]] : [];
 
-  // Filter
+  // ── Apply search ──
   if (search) {
     data = data.filter(r =>
-      (r.mfr + ' ' + (r.model||'') + ' ' + (r.type||r.fn||'')).toLowerCase().includes(search)
+      Object.values(r).join(' ').toLowerCase().includes(search)
     );
   }
-  if (voltClass && (catKey === 'circuit_breakers')) {
-    data = data.filter(r => {
-      if (voltClass === 'LVCB') return r.kv <= 1;
-      if (voltClass === 'MVCB') return r.kv > 1 && r.kv <= 36;
-      if (voltClass === 'HVCB') return r.kv > 36;
-      return true;
-    });
+
+  // ── Apply dynamic filters ──
+  if (catKey === 'circuit_breakers') {
+    const voltClass = document.getElementById('cf-volt-class')?.value || '';
+    const tech      = document.getElementById('cf-tech')?.value || '';
+    const mech      = document.getElementById('cf-mech')?.value || '';
+    const amin      = parseFloat(document.getElementById('cf-amin')?.value) || 0;
+    const amax      = parseFloat(document.getElementById('cf-amax')?.value) || Infinity;
+    if (voltClass === 'LVCB') data = data.filter(r => r.kv <= 1);
+    else if (voltClass === 'MVCB') data = data.filter(r => r.kv > 1 && r.kv <= 36);
+    else if (voltClass === 'HVCB') data = data.filter(r => r.kv > 36);
+    if (tech) data = data.filter(r => r.tech === tech);
+    if (mech) data = data.filter(r => (r.mech || '').includes(mech));
+    if (amin > 0) data = data.filter(r => r.a >= amin);
+    if (amax < Infinity) data = data.filter(r => r.a <= amax);
+
+  } else if (catKey === 'protection_relays') {
+    const fn  = document.getElementById('cf-relay-fn')?.value || '';
+    const tcc = document.getElementById('cf-tcc')?.value || '';
+    if (fn) data = data.filter(r => (r.fn || '').includes(fn));
+    if (tcc === 'IEC') data = data.filter(r => (r.curves || '').includes('IEC'));
+    else if (tcc === 'IEEE') data = data.filter(r => (r.curves || '').includes('IEEE') || (r.curves || '').includes('ANSI'));
+    else if (tcc === 'Mho') data = data.filter(r => (r.curves || '').includes('Mho'));
   }
 
-  // Column definitions per catalogue type
+  // ── Column definitions ──
   const COLS = {
     circuit_breakers: [
-      { key:'mfr', label:'Manufacturer' },
-      { key:'model', label:'Model' },
-      { key:'tech', label:'Technology' },
-      { key:'kv', label:'kV' },
-      { key:'a', label:'A' },
-      { key:'icu', label:'Icu (kA)' },
-      { key:'icm', label:'Icm (kA)' },
-      { key:'stkw', label:'STW (kA)' },
-      { key:'t_open', label:'t-open (ms)' },
+      { key:'mfr',    label:'Manufacturer' },
+      { key:'model',  label:'Model' },
+      { key:'tech',   label:'Tech' },
+      { key:'kv',     label:'kV' },
+      { key:'a',      label:'A (cont.)' },
+      { key:'icu',    label:'Icu kA' },
+      { key:'ics',    label:'Ics kA' },
+      { key:'icm',    label:'Icm kA' },
+      { key:'stkw',   label:'STW kA' },
+      { key:'t_open', label:'t-open ms' },
+      { key:'mech',   label:'Mechanism' },
     ],
     disconnectors: [
-      { key:'mfr', label:'Manufacturer' },
-      { key:'model', label:'Model' },
-      { key:'type', label:'Type' },
-      { key:'kv', label:'kV' },
-      { key:'a', label:'A' },
-      { key:'stkw', label:'STW (kA)' },
-      { key:'peak', label:'Peak (kA)' },
-      { key:'ins_kv', label:'BIL (kV)' },
+      { key:'mfr',    label:'Manufacturer' },
+      { key:'model',  label:'Model' },
+      { key:'type',   label:'Type' },
+      { key:'kv',     label:'kV' },
+      { key:'a',      label:'A' },
+      { key:'stkw',   label:'STW kA' },
+      { key:'peak',   label:'Peak kA' },
+      { key:'ins_kv', label:'BIL kV' },
+      { key:'mech',   label:'Mech.' },
     ],
     fuses: [
-      { key:'mfr', label:'Manufacturer' },
-      { key:'model', label:'Model' },
-      { key:'kv', label:'kV' },
-      { key:'a', label:'A' },
-      { key:'icu', label:'Icu (kA)' },
+      { key:'mfr',        label:'Manufacturer' },
+      { key:'model',      label:'Model' },
+      { key:'type',       label:'Type' },
+      { key:'kv',         label:'kV' },
+      { key:'a',          label:'A' },
+      { key:'icu',        label:'Icu kA' },
       { key:'fuse_class', label:'Class' },
     ],
     protection_relays: [
-      { key:'mfr', label:'Manufacturer' },
-      { key:'model', label:'Model' },
-      { key:'code', label:'ANSI Code' },
-      { key:'fn', label:'Function' },
-      { key:'ct_in', label:'CT In' },
-      { key:'vt_in', label:'VT In' },
-      { key:'comms', label:'Comms' },
-      { key:'pickup', label:'Pickup Range' },
+      { key:'mfr',    label:'Manufacturer' },
+      { key:'model',  label:'Model' },
+      { key:'code',   label:'ANSI' },
+      { key:'fn',     label:'Function' },
+      { key:'ct_in',  label:'CT In' },
+      { key:'vt_in',  label:'VT In' },
+      { key:'comms',  label:'Comms' },
+      { key:'pickup', label:'Pickup' },
+      { key:'tms',    label:'TMS' },
+      { key:'curves', label:'TCC Curves' },
     ],
     current_transformers: [
-      { key:'mfr', label:'Manufacturer' },
-      { key:'model', label:'Model' },
-      { key:'kv', label:'kV' },
-      { key:'ip', label:'Ip (A)' },
-      { key:'is', label:'Is (A)' },
-      { key:'class', label:'Class' },
-      { key:'burden', label:'Burden (VA)' },
-      { key:'alf', label:'ALF' },
+      { key:'mfr',     label:'Manufacturer' },
+      { key:'model',   label:'Model' },
+      { key:'kv',      label:'kV' },
+      { key:'ip',      label:'Ip (A)' },
+      { key:'is',      label:'Is (A)' },
+      { key:'class',   label:'Class' },
+      { key:'burden',  label:'Burden VA' },
+      { key:'alf',     label:'ALF' },
+      { key:'thermal', label:'Ith kA' },
+      { key:'dynamic', label:'Idyn kA' },
     ],
     voltage_transformers: [
-      { key:'mfr', label:'Manufacturer' },
-      { key:'model', label:'Model' },
-      { key:'type', label:'Type' },
-      { key:'kv_p', label:'Vp (kV)' },
-      { key:'kv_s_v', label:'Vs (V)' },
-      { key:'class', label:'Class' },
-      { key:'burden', label:'Burden (VA)' },
+      { key:'mfr',     label:'Manufacturer' },
+      { key:'model',   label:'Model' },
+      { key:'type',    label:'Type' },
+      { key:'kv_p',    label:'Vp kV' },
+      { key:'kv_s_v',  label:'Vs V' },
+      { key:'class',   label:'Class' },
+      { key:'burden',  label:'Burden VA' },
+      { key:'vf',      label:'Vf' },
+      { key:'ins_kv',  label:'BIL kV' },
     ],
   };
 
   const cols = COLS[catKey] || [];
   thead.innerHTML = '<tr>' + cols.map(c => `<th>${c.label}</th>`).join('') + '</tr>';
 
-  tbody.innerHTML = data.slice(0, 60).map(row => {
-    const cells = cols.map(c => `<td>${row[c.key] ?? '–'}</td>`).join('');
+  tbody.innerHTML = data.map(row => {
+    const cells = cols.map(c => {
+      const val = row[c.key] ?? '–';
+      return `<td title="${val}">${val}</td>`;
+    }).join('');
     return `<tr data-cat-id="${row.id}">${cells}</tr>`;
-  }).join('') || '<tr><td colspan="10" style="text-align:center;color:var(--text-dim)">No results</td></tr>';
+  }).join('') || `<tr><td colspan="${cols.length}" style="text-align:center;color:var(--text-dim);padding:12px">No results match the current filters</td></tr>`;
 
   // Row click → select
   tbody.querySelectorAll('tr[data-cat-id]').forEach(tr => {
     tr.addEventListener('click', () => {
       tbody.querySelectorAll('tr').forEach(r => r.classList.remove('cat-selected'));
       tr.classList.add('cat-selected');
-      const rowId = tr.dataset.catId;
-      _catSelectedRow = data.find(r => r.id === rowId);
+      _catSelectedRow = data.find(r => r.id === tr.dataset.catId);
       if (applyBtn) applyBtn.style.display = '';
+    });
+    tr.addEventListener('dblclick', () => {
+      // Double-click to apply immediately
+      _catSelectedRow = data.find(r => r.id === tr.dataset.catId);
+      if (!_catSelectedRow) return;
+      const comp = getComp(state.selected);
+      if (!comp) return;
+      applyCatalogueRow(comp, _catSelectedRow, _currentCatKey);
+      updatePropertiesPanel();
+      showToast('Applied: ' + (_catSelectedRow.mfr || '') + ' ' + (_catSelectedRow.model || ''));
     });
   });
 }
