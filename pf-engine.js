@@ -846,52 +846,112 @@ function showPFError(msg) {
    ═══════════════════════════════════════════════════════ */
 
 function applyVoltageOverlay(busResults, branchResults, overlayMode) {
-  // Remove old overlays
-  document.querySelectorAll('.pf-voltage-label, .pf-branch-label').forEach(el => el.remove());
+  // Clear previous overlay badges
+  document.querySelectorAll('.pf-voltage-label, .pf-branch-label, .pf-bus-badge, .pf-flow-badge').forEach(el => el.remove());
 
-  const compLayer = document.getElementById('sld-components');
-  if (!compLayer) return;
+  const overlayLayer = document.getElementById('pf-overlay-layer');
+  if (!overlayLayer) return;
+  overlayLayer.innerHTML = '';
 
-  // ── Bus voltage labels ──
+  // Helper: get component by id from state
+  function getComp(id) { return state.components.find(c => c.id === id); }
+
+  // Helper: get bounding box (canvas coords) of a component
+  function compBBox(mc) {
+    const def = (typeof SLD_COMP !== 'undefined') ? SLD_COMP[mc.type] : null;
+    const w = (def ? def.w : 40);
+    const h = (def ? def.h : 40);
+    return { x: mc.x, y: mc.y, w, h };
+  }
+
+  // Helper: get world position of a port
+  function getPortPos(compId, portId) {
+    const mc = getComp(compId);
+    if (!mc) return null;
+    const def = (typeof SLD_COMP !== 'undefined') ? SLD_COMP[mc.type] : null;
+    if (!def) return { x: mc.x, y: mc.y };
+    const port = def.ports.find(p => p.id === portId);
+    if (!port) return { x: mc.x, y: mc.y };
+    // Rotate port positions for rotated components
+    const angle = (mc.rotation || 0) * Math.PI / 180;
+    const cx = def.w / 2, cy = def.h / 2;
+    const px = port.x - cx, py = port.y - cy;
+    const rx = px * Math.cos(angle) - py * Math.sin(angle) + cx;
+    const ry = px * Math.sin(angle) + py * Math.cos(angle) + cy;
+    return { x: mc.x + rx, y: mc.y + ry };
+  }
+
+  // ── Bus voltage badges ──
   for (const br of busResults) {
-    const vPu  = parseFloat(br.v_pu);
-    const color = vPu < 0.90 ? '#ff5252' : vPu > 1.10 ? '#ff9100' : vPu < 0.95 || vPu > 1.05 ? '#ffd700' : '#00e676';
+    const vPu = parseFloat(br.v_pu);
+    const vClass = vPu < 0.90 ? 'v-low' : vPu > 1.10 ? 'v-high' : vPu < 0.95 || vPu > 1.05 ? 'v-warn' : 'v-ok';
 
-    // Find every component in this bus's node group
+    // Find primary component for this bus
     const compsToLabel = state.components.filter(c =>
       br.nodeGroup && br.nodeGroup.includes(c.id) &&
-      (c.type === 'bus' || c.type === 'utility' || c.type === 'generator' || c.type === 'load')
+      (c.type === 'bus' || c.type === 'utility' || c.type === 'generator')
     );
     if (compsToLabel.length === 0) {
-      // Fallback: match by name
       const mc = state.components.find(c => c.name === br.name);
       if (mc) compsToLabel.push(mc);
     }
 
     compsToLabel.forEach(mc => {
-      const el = compLayer.querySelector(`[data-id="${mc.id}"]`);
-      if (!el) return;
-      const overlay = document.createElement('div');
-      overlay.className = 'pf-voltage-label';
-      overlay.style.color = color;
-      overlay.innerHTML = `<b>${br.v_pu} pu</b><br>${br.v_kv} kV<br>${br.angle_deg}°`;
-      el.appendChild(overlay);
+      const bbox = compBBox(mc);
+      const badge = document.createElement('div');
+      badge.className = `pf-bus-badge ${vClass}`;
+      // Position to the right of the component with a small gap
+      badge.style.left  = (bbox.x + bbox.w + 8) + 'px';
+      badge.style.top   = (bbox.y + bbox.h / 2 - 20) + 'px';
+      badge.innerHTML =
+        `<span style="opacity:0.7;font-size:9px;">${br.name}</span><br>` +
+        `<b>${br.v_pu} pu</b>  ${br.v_kv} kV<br>` +
+        `<span style="font-weight:normal;font-size:9px;">θ ${br.angle_deg}°  P ${br.P_MW} MW  Q ${br.Q_MVAR} Mvar</span>`;
+      overlayLayer.appendChild(badge);
     });
   }
 
-  // ── Branch flow labels ── (shown if overlayMode === 'both')
+  // ── Branch flow badges ──
   if (overlayMode !== 'both') return;
 
   for (const br of branchResults) {
     if (!br.compId) continue;
-    const el = compLayer.querySelector(`[data-id="${br.compId}"]`);
-    if (!el) return;
-    const load  = parseFloat(br.loading_pct);
-    const color = load > 100 ? '#ff5252' : load > 80 ? '#ffd700' : '#00e5ff';
-    const lbl   = document.createElement('div');
-    lbl.className = 'pf-branch-label';
-    lbl.style.color = color;
-    lbl.innerHTML = `${br.P_MW} MW<br>${br.Q_MVAR} MVAR<br>${br.I_A} A`;
-    el.appendChild(lbl);
+    const mc = getComp(br.compId);
+    if (!mc) continue;
+
+    // Find the wire connected to this branch component (use first wire)
+    const wire = state.wires.find(w => w.from.compId === br.compId || w.to.compId === br.compId);
+
+    let midX, midY;
+    if (wire) {
+      // Compute midpoint of the wire using port positions
+      const fromPos = getPortPos(wire.from.compId, wire.from.portId);
+      const toPos   = getPortPos(wire.to.compId, wire.to.portId);
+      if (fromPos && toPos) {
+        midX = (fromPos.x + toPos.x) / 2;
+        midY = (fromPos.y + toPos.y) / 2;
+      }
+    }
+    if (midX === undefined) {
+      // Fall back to component center
+      const bbox = compBBox(mc);
+      midX = mc.x + bbox.w / 2;
+      midY = mc.y + bbox.h / 2;
+    }
+
+    const load    = parseFloat(br.loading_pct);
+    const loadCls = load > 100 ? 'load-high' : load > 80 ? 'load-warn' : '';
+    // Arrow direction: positive P flows from → to, negative flows ← from
+    const pVal = parseFloat(br.P_MW);
+    const arrowChar = pVal >= 0 ? '→' : '←';
+
+    const badge = document.createElement('div');
+    badge.className = `pf-flow-badge ${loadCls}`;
+    badge.style.left = (midX + 6) + 'px';
+    badge.style.top  = (midY - 14) + 'px';
+    badge.innerHTML =
+      `<span class="pf-flow-arrow">${arrowChar}</span>` +
+      `<span>${Math.abs(pVal).toFixed(2)} MW · ${br.Q_MVAR} Mvar · ${br.I_A} A · <b>${br.loading_pct}%</b></span>`;
+    overlayLayer.appendChild(badge);
   }
 }

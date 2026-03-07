@@ -115,6 +115,26 @@ const CATALOGUE = {
      Columns: mfr, model, type, kv, a, icu, i2t_min, i2t_max, fuse_class
      ═══════════════════════════════════════════════════════ */
   fuses: [
+    /* ── LV HRC Fuses (IEC 60269) ≤1 kV ────────────────── */
+    { id:'fu_lv001', mfr:'ABB',                model:'OFAF 000 gG 63A',   type:'NH/HRC', kv:0.4,  a:63,   icu:120, i2t_min:0.8,  i2t_max:12,   fuse_class:'gG' },
+    { id:'fu_lv002', mfr:'ABB',                model:'OFAF 000 gG 100A',  type:'NH/HRC', kv:0.4,  a:100,  icu:120, i2t_min:2.0,  i2t_max:30,   fuse_class:'gG' },
+    { id:'fu_lv003', mfr:'ABB',                model:'OFAF 1 gG 200A',    type:'NH/HRC', kv:0.4,  a:200,  icu:120, i2t_min:8.0,  i2t_max:120,  fuse_class:'gG' },
+    { id:'fu_lv004', mfr:'ABB',                model:'OFAF 2 gG 315A',    type:'NH/HRC', kv:0.4,  a:315,  icu:120, i2t_min:25,   i2t_max:370,  fuse_class:'gG' },
+    { id:'fu_lv005', mfr:'ABB',                model:'OFAF 3 gG 500A',    type:'NH/HRC', kv:0.69, a:500,  icu:120, i2t_min:60,   i2t_max:900,  fuse_class:'gG' },
+    { id:'fu_lv006', mfr:'ABB',                model:'OFAF 3 gG 1000A',   type:'NH/HRC', kv:0.69, a:1000, icu:120, i2t_min:350,  i2t_max:5500, fuse_class:'gG' },
+    { id:'fu_lv007', mfr:'Siemens',            model:'3NA3 000 gG 63A',   type:'NH/HRC', kv:0.5,  a:63,   icu:120, i2t_min:0.9,  i2t_max:13,   fuse_class:'gG' },
+    { id:'fu_lv008', mfr:'Siemens',            model:'3NA3 1 gG 100A',    type:'NH/HRC', kv:0.5,  a:100,  icu:120, i2t_min:2.2,  i2t_max:35,   fuse_class:'gG' },
+    { id:'fu_lv009', mfr:'Siemens',            model:'3NA3 1 gG 250A',    type:'NH/HRC', kv:0.5,  a:250,  icu:120, i2t_min:15,   i2t_max:230,  fuse_class:'gG' },
+    { id:'fu_lv010', mfr:'Siemens',            model:'3NA3 3 gG 630A',    type:'NH/HRC', kv:0.5,  a:630,  icu:120, i2t_min:100,  i2t_max:1500, fuse_class:'gG' },
+    { id:'fu_lv011', mfr:'Schneider Electric', model:'DF2CN3 63A gG',     type:'NH/HRC', kv:0.69, a:63,   icu:100, i2t_min:0.8,  i2t_max:11,   fuse_class:'gG' },
+    { id:'fu_lv012', mfr:'Schneider Electric', model:'DF2CN2 160A gG',    type:'NH/HRC', kv:0.69, a:160,  icu:100, i2t_min:4.0,  i2t_max:60,   fuse_class:'gG' },
+    { id:'fu_lv013', mfr:'Schneider Electric', model:'DF2CN2 400A gG',    type:'NH/HRC', kv:0.69, a:400,  icu:100, i2t_min:25,   i2t_max:400,  fuse_class:'gG' },
+    { id:'fu_lv014', mfr:'Eaton',              model:'Bussmann NH 000 63A', type:'NH/HRC',kv:0.4, a:63,   icu:120, i2t_min:0.8,  i2t_max:12,   fuse_class:'gG' },
+    { id:'fu_lv015', mfr:'Eaton',              model:'Bussmann NH 0 100A', type:'NH/HRC', kv:0.4,  a:100,  icu:120, i2t_min:2.0,  i2t_max:30,   fuse_class:'gG' },
+    { id:'fu_lv016', mfr:'Eaton',              model:'Bussmann NH 0 200A', type:'NH/HRC', kv:0.4,  a:200,  icu:120, i2t_min:8.0,  i2t_max:120,  fuse_class:'gG' },
+    { id:'fu_lv017', mfr:'Eaton',              model:'Bussmann NH 2 500A', type:'NH/HRC', kv:0.69, a:500,  icu:120, i2t_min:60,   i2t_max:900,  fuse_class:'gG' },
+    { id:'fu_lv018', mfr:'Eaton',              model:'Bussmann NH 3 1000A',type:'NH/HRC', kv:0.69, a:1000, icu:120, i2t_min:350,  i2t_max:5500, fuse_class:'gG' },
+
     /* MV HRC Back-up Fuses (IEC 60282-1) */
     { id:'fu001', mfr:'ABB',                model:'CMF 12 2A',      type:'HRC', kv:12,  a:2,   icu:50, i2t_min:0.05,  i2t_max:1,      fuse_class:'Back-up' },
     { id:'fu002', mfr:'ABB',                model:'CMF 12 6.3A',    type:'HRC', kv:12,  a:6.3, icu:50, i2t_min:2.5,   i2t_max:30,     fuse_class:'Back-up' },

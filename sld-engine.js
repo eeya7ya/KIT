@@ -1329,6 +1329,9 @@ function bindCatalogueBrowser() {
     if (applyBtn) applyBtn.style.display = 'none';
     buildCatFilters(null, typeFilter.value);
     renderCatalogueTable(typeFilter.value);
+    // Reset to browse tab when category changes
+    activateCatalogueTab('browse');
+    showCatalogueDetail(null, null);
   });
 
   if (searchInput) {
@@ -1345,6 +1348,11 @@ function bindCatalogueBrowser() {
       showToast('Applied: ' + (_catSelectedRow.mfr || '') + ' ' + (_catSelectedRow.model || ''));
     });
   }
+
+  // Catalogue tab switching (Browse / Spec Sheet)
+  document.querySelectorAll('.cat-tab').forEach(btn => {
+    btn.addEventListener('click', () => activateCatalogueTab(btn.dataset.cattab));
+  });
 }
 
 /* Build the dynamic filter bar above the catalogue table */
@@ -1392,6 +1400,33 @@ function buildCatFilters(compType, catKey) {
         <div class="cat-filter-group">
           <label class="cat-filter-label">Max Current (A)</label>
           <input type="number" class="cat-filter-num" id="cf-amax" placeholder="e.g. 4000" min="0"/>
+        </div>
+      </div>`;
+    container.querySelectorAll('select,input').forEach(el =>
+      el.addEventListener('change', () => renderCatalogueTable(catKey))
+    );
+    container.querySelectorAll('input').forEach(el =>
+      el.addEventListener('input', () => renderCatalogueTable(catKey))
+    );
+
+  } else if (catKey === 'fuses') {
+    container.innerHTML = `
+      <div class="cat-filter-row">
+        <div class="cat-filter-group">
+          <label class="cat-filter-label">Voltage Class</label>
+          <select class="cat-filter-sel" id="cf-fuse-volt">
+            <option value="">All</option>
+            <option value="LV">LV (≤1 kV)</option>
+            <option value="MV">MV (&gt;1 kV)</option>
+          </select>
+        </div>
+        <div class="cat-filter-group">
+          <label class="cat-filter-label">Min Current (A)</label>
+          <input type="number" class="cat-filter-num" id="cf-fuse-amin" placeholder="e.g. 63" min="0"/>
+        </div>
+        <div class="cat-filter-group">
+          <label class="cat-filter-label">Max Current (A)</label>
+          <input type="number" class="cat-filter-num" id="cf-fuse-amax" placeholder="e.g. 630" min="0"/>
         </div>
       </div>`;
     container.querySelectorAll('select,input').forEach(el =>
@@ -1475,6 +1510,15 @@ function renderCatalogueTable(catKey) {
     if (mech) data = data.filter(r => (r.mech || '').includes(mech));
     if (amin > 0) data = data.filter(r => r.a >= amin);
     if (amax < Infinity) data = data.filter(r => r.a <= amax);
+
+  } else if (catKey === 'fuses') {
+    const fuseVolt = document.getElementById('cf-fuse-volt')?.value || '';
+    const fuseAmin = parseFloat(document.getElementById('cf-fuse-amin')?.value) || 0;
+    const fuseAmax = parseFloat(document.getElementById('cf-fuse-amax')?.value) || Infinity;
+    if (fuseVolt === 'LV') data = data.filter(r => r.kv <= 1);
+    else if (fuseVolt === 'MV') data = data.filter(r => r.kv > 1);
+    if (fuseAmin > 0) data = data.filter(r => r.a >= fuseAmin);
+    if (fuseAmax < Infinity) data = data.filter(r => r.a <= fuseAmax);
 
   } else if (catKey === 'protection_relays') {
     const fn  = document.getElementById('cf-relay-fn')?.value || '';
@@ -1568,13 +1612,18 @@ function renderCatalogueTable(catKey) {
     return `<tr data-cat-id="${row.id}">${cells}</tr>`;
   }).join('') || `<tr><td colspan="${cols.length}" style="text-align:center;color:var(--text-dim);padding:12px">No results match the current filters</td></tr>`;
 
-  // Row click → select
+  // Row click → select + show spec sheet
   tbody.querySelectorAll('tr[data-cat-id]').forEach(tr => {
     tr.addEventListener('click', () => {
       tbody.querySelectorAll('tr').forEach(r => r.classList.remove('cat-selected'));
       tr.classList.add('cat-selected');
       _catSelectedRow = data.find(r => r.id === tr.dataset.catId);
       if (applyBtn) applyBtn.style.display = '';
+      // Auto-switch to Spec Sheet tab and populate detail
+      if (_catSelectedRow) {
+        showCatalogueDetail(_catSelectedRow, catKey);
+        activateCatalogueTab('detail');
+      }
     });
     tr.addEventListener('dblclick', () => {
       // Double-click to apply immediately
@@ -1587,6 +1636,134 @@ function renderCatalogueTable(catKey) {
       showToast('Applied: ' + (_catSelectedRow.mfr || '') + ' ' + (_catSelectedRow.model || ''));
     });
   });
+}
+
+/* Switch between Browse / Spec Sheet tabs */
+function activateCatalogueTab(tabName) {
+  document.querySelectorAll('.cat-tab').forEach(btn => {
+    btn.classList.toggle('cat-tab-active', btn.dataset.cattab === tabName);
+  });
+  const browsePanel = document.getElementById('cat-panel-browse');
+  const detailPanel = document.getElementById('cat-panel-detail');
+  if (browsePanel) browsePanel.classList.toggle('cat-panel-visible', tabName === 'browse');
+  if (detailPanel) detailPanel.classList.toggle('cat-panel-visible', tabName === 'detail');
+}
+
+/* Build and display the manufacturer spec card */
+function showCatalogueDetail(row, catKey) {
+  const emptyDiv   = document.getElementById('cat-spec-empty');
+  const contentDiv = document.getElementById('cat-spec-content');
+  if (!contentDiv) return;
+
+  if (!row) {
+    if (emptyDiv) emptyDiv.style.display = '';
+    contentDiv.style.display = 'none';
+    return;
+  }
+  if (emptyDiv) emptyDiv.style.display = 'none';
+  contentDiv.style.display = '';
+
+  const mfr   = row.mfr   || '–';
+  const model = row.model || '–';
+
+  let rows = '';
+  const R = (key, val, unit) => {
+    if (val === null || val === undefined) return '';
+    return `<div class="spec-row"><span class="spec-key">${key}</span><span class="spec-val">${val}${unit ? ' ' + unit : ''}</span></div>`;
+  };
+  const DIV = () => '<div class="cat-spec-divider"></div>';
+
+  let std = '';
+
+  if (catKey === 'circuit_breakers') {
+    const techNames = { ACB:'Air Circuit Breaker (ACB)', MCCB:'Moulded Case CB (MCCB)', VCB:'Vacuum CB (VCB)', SF6:'SF6 Gas CB' };
+    const voltClass = row.kv <= 1 ? 'Low Voltage (LV)' : row.kv <= 36 ? 'Medium Voltage (MV)' : 'High Voltage (HV)';
+    rows  = R('Technology', techNames[row.tech] || row.tech, '');
+    rows += R('Voltage Class', voltClass, '');
+    rows += R('Rated Voltage', row.kv, 'kV');
+    rows += DIV();
+    rows += R('Rated Cont. Current', row.a ? row.a.toLocaleString() : '–', 'A');
+    rows += R('Breaking Cap. Icu', row.icu, 'kA');
+    rows += R('Service Cap. Ics', row.ics, 'kA');
+    rows += R('Making Cap. Icm', row.icm, 'kA');
+    rows += R('Short-time Withstand STW', row.stkw, 'kA / 3s');
+    rows += DIV();
+    rows += R('Opening Time', row.t_open !== null ? row.t_open : 'N/A', row.t_open !== null ? 'ms' : '');
+    rows += R('Closing Time', row.t_close !== null ? row.t_close : 'N/A', row.t_close !== null ? 'ms' : '');
+    rows += R('Mechanism', row.mech, '');
+    std = row.kv > 36 ? 'IEC 62271-100 (HV CB)' : row.kv > 1 ? 'IEC 62271-100 (MV CB)' : 'IEC 60947-2 (LV CB)';
+
+  } else if (catKey === 'fuses') {
+    const voltClass = row.kv <= 1 ? 'Low Voltage (LV)' : 'Medium Voltage (MV)';
+    rows  = R('Fuse Class', row.fuse_class, '');
+    rows += R('Type', row.type, '');
+    rows += R('Voltage Class', voltClass, '');
+    rows += R('Rated Voltage', row.kv, 'kV');
+    rows += DIV();
+    rows += R('Rated Current', row.a, 'A');
+    rows += R('Breaking Capacity Icu', row.icu, 'kA');
+    rows += DIV();
+    rows += R('Let-through I²t (min)', row.i2t_min, 'A²s');
+    rows += R('Let-through I²t (max)', row.i2t_max, 'A²s');
+    std = row.kv <= 1 ? 'IEC 60269 (LV Fuses)' : 'IEC 60282-1 (MV Fuses)';
+
+  } else if (catKey === 'disconnectors') {
+    rows  = R('Type', row.type, '');
+    rows += R('Rated Voltage', row.kv, 'kV');
+    rows += DIV();
+    rows += R('Rated Current', row.a ? row.a.toLocaleString() : '–', 'A');
+    rows += R('Short-time Withstand STW', row.stkw, 'kA');
+    rows += R('Peak Withstand', row.peak, 'kA');
+    rows += R('BIL Impulse Level', row.ins_kv, 'kV');
+    rows += R('Mechanism', row.mech, '');
+    std = 'IEC 62271-102';
+
+  } else if (catKey === 'protection_relays') {
+    rows  = R('ANSI Code', row.code, '');
+    rows += R('Function', row.fn, '');
+    rows += DIV();
+    rows += R('CT Inputs', row.ct_in, '');
+    rows += R('VT Inputs', row.vt_in, '');
+    rows += R('Binary Inputs', row.bi, '');
+    rows += R('Binary Outputs', row.bo, '');
+    rows += DIV();
+    rows += R('Communications', row.comms, '');
+    rows += R('Pickup Range', row.pickup, '');
+    rows += R('TMS Range', row.tms, '');
+    rows += R('TCC Curves', row.curves, '');
+    std = 'IEC 60255 series';
+
+  } else if (catKey === 'current_transformers') {
+    rows  = R('Rated Voltage', row.kv, 'kV');
+    rows += R('Primary Current (Ip)', row.ip, 'A');
+    rows += R('Secondary Current (Is)', row.is, 'A');
+    rows += DIV();
+    rows += R('Accuracy Class', row.class, '');
+    rows += R('Burden', row.burden, 'VA');
+    rows += R('ALF (Accuracy Limit Factor)', row.alf, '');
+    rows += R('Thermal Limit Ith', row.thermal, 'kA');
+    rows += R('Dynamic Limit Idyn', row.dynamic, 'kA');
+    std = 'IEC 61869-2';
+
+  } else if (catKey === 'voltage_transformers') {
+    rows  = R('Type', row.type, '');
+    rows += R('Primary Voltage', row.kv_p, 'kV');
+    rows += R('Secondary Voltage', row.kv_s_v, 'V');
+    rows += DIV();
+    rows += R('Accuracy Class', row.class, '');
+    rows += R('Burden', row.burden, 'VA');
+    rows += R('Voltage Factor Vf', row.vf, '');
+    rows += R('BIL Impulse Level', row.ins_kv, 'kV');
+    std = 'IEC 61869-3 / IEC 61869-5';
+  }
+
+  contentDiv.innerHTML = `
+    <div class="cat-spec-card">
+      <div class="spec-header">${mfr} — ${model}</div>
+      <div class="spec-sub">${(catKey || '').replace(/_/g,' ').replace(/\b\w/g, l => l.toUpperCase())}</div>
+      ${rows}
+      ${std ? `<div class="spec-std">Standard: ${std}</div>` : ''}
+    </div>`;
 }
 
 function applyCatalogueRow(comp, row, catKey) {
