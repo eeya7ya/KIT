@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>KIT — Single Line Diagram Editor</title>
+  <title>eSpark KIT — Power System Steady State Analyzer</title>
   <link rel="stylesheet" href="sld.css" />
 </head>
 <body>
@@ -14,11 +14,13 @@
   <div class="sld-toolbar">
     <div class="toolbar-left">
       <a href="index.html" class="toolbar-brand" title="Back to Dashboard">
-        <div class="logo-mark-sm">K</div>
-        <span>KIT</span>
+        <img src="eSpark Logo.jpeg" alt="eSpark" class="toolbar-logo-img"
+             onerror="this.style.display='none';document.getElementById('tb-logo-fallback').style.display='flex'" />
+        <div id="tb-logo-fallback" class="logo-mark-sm" style="display:none;">K</div>
+        <span>eSpark KIT</span>
       </a>
       <div class="toolbar-sep"></div>
-      <span class="toolbar-title">Single Line Diagram</span>
+      <span class="toolbar-title">Power System Steady State Analyzer</span>
     </div>
 
     <div class="toolbar-center">
@@ -226,6 +228,8 @@
         <svg class="sld-wires" id="sld-wires"></svg>
         <!-- Component layer -->
         <div class="sld-components" id="sld-components"></div>
+        <!-- Power flow overlay badges (positioned above components) -->
+        <div class="pf-overlay-layer" id="pf-overlay-layer"></div>
       </div>
 
       <!-- Minimap -->
@@ -305,28 +309,45 @@
         <!-- ── Catalogue Browser ───────────────────── -->
         <div id="catalogue-section" style="display:none;">
           <div class="props-section-title">Manufacturer Catalogue</div>
-          <div class="catalogue-filters">
-            <!-- Category picker shown only when type is not locked -->
-            <select class="prop-input" id="cat-type-filter">
-              <option value="">-- Select Category --</option>
-              <option value="circuit_breakers">Circuit Breakers</option>
-              <option value="disconnectors">Disconnectors</option>
-              <option value="fuses">Fuses</option>
-              <option value="protection_relays">Protection Relays</option>
-              <option value="current_transformers">Current Transformers</option>
-              <option value="voltage_transformers">Voltage Transformers</option>
-            </select>
-            <!-- Dynamic filter bar (injected by JS based on component type) -->
-            <div id="cat-dynamic-filters"></div>
-            <input type="text" class="prop-input" id="cat-search" placeholder="Search model, manufacturer…" />
+
+          <!-- Browse / Spec Sheet tabs -->
+          <div class="cat-tabs">
+            <button class="cat-tab cat-tab-active" data-cattab="browse">Browse</button>
+            <button class="cat-tab" data-cattab="detail">Spec Sheet</button>
           </div>
-          <div class="catalogue-table-wrap">
-            <table class="catalogue-table" id="catalogue-table">
-              <thead id="catalogue-thead"></thead>
-              <tbody id="catalogue-tbody"></tbody>
-            </table>
+
+          <!-- Browse panel -->
+          <div id="cat-panel-browse" class="cat-panel cat-panel-visible">
+            <div class="catalogue-filters">
+              <!-- Category picker shown only when type is not locked -->
+              <select class="prop-input" id="cat-type-filter">
+                <option value="">-- Select Category --</option>
+                <option value="circuit_breakers">Circuit Breakers</option>
+                <option value="disconnectors">Disconnectors</option>
+                <option value="fuses">Fuses</option>
+                <option value="protection_relays">Protection Relays</option>
+                <option value="current_transformers">Current Transformers</option>
+                <option value="voltage_transformers">Voltage Transformers</option>
+              </select>
+              <!-- Dynamic filter bar (injected by JS based on component type) -->
+              <div id="cat-dynamic-filters"></div>
+              <input type="text" class="prop-input" id="cat-search" placeholder="Search model, manufacturer…" />
+            </div>
+            <div class="catalogue-table-wrap">
+              <table class="catalogue-table" id="catalogue-table">
+                <thead id="catalogue-thead"></thead>
+                <tbody id="catalogue-tbody"></tbody>
+              </table>
+            </div>
+            <p class="cat-hint">Click to select → auto Spec Sheet · Double-click to apply</p>
           </div>
-          <p class="cat-hint">Click to select · Double-click to apply instantly</p>
+
+          <!-- Spec Sheet panel -->
+          <div id="cat-panel-detail" class="cat-panel">
+            <div class="cat-spec-empty" id="cat-spec-empty">Select a component from the Browse tab to view its specification sheet.</div>
+            <div id="cat-spec-content" style="display:none;"></div>
+          </div>
+
           <button class="cat-apply-btn" id="cat-apply-btn" style="display:none;">✓ Apply to Component</button>
         </div>
 

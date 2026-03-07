@@ -179,9 +179,9 @@ const COMP_PARAMS = {
   fuse: [
     { id: 'fuse_type',label: 'Fuse Class',              unit: '',    type: 'select', default: 'HRC Back-up',
       options: ['HRC Back-up', 'HRC Full-range', 'Drop-out', 'Expulsion'] },
-    { id: 'kv',      label: 'Rated Voltage',            unit: 'kV',  type: 'number', default: 12,   step: 0.1,  min: 0.1 },
+    { id: 'kv',      label: 'Rated Voltage',            unit: 'kV',  type: 'number', default: 0.4,  step: 0.01, min: 0.1 },
     { id: 'rating_a',label: 'Rated Current',            unit: 'A',   type: 'number', default: 63,   step: 1,    min: 1 },
-    { id: 'icu',     label: 'Breaking Capacity',        unit: 'kA',  type: 'number', default: 50,   step: 1,    min: 0 },
+    { id: 'icu',     label: 'Breaking Capacity',        unit: 'kA',  type: 'number', default: 120,  step: 1,    min: 0 },
     { id: 'i2t_min', label: 'Let-through I²t (min)',    unit: 'A²s', type: 'number', default: 280,  step: 1,    min: 0 },
     { id: 'i2t_max', label: 'Let-through I²t (max)',    unit: 'A²s', type: 'number', default: 3200, step: 10,   min: 0 },
   ],
